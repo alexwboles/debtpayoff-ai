@@ -1,110 +1,207 @@
+/* DebtPayoff AI — premium light theme.
+ * One accent: deep teal. No gradients, no emoji chrome.
+ * Spacing scale: 8 / 12 / 16 / 24 / 32. Radius: 8–12px. */
 :root {
-  --bg: #f1f5f9;
+  --bg: #f6f7f9;
   --card: #ffffff;
-  --ink: #0f172a;
-  --muted: #64748b;
-  --line: #e2e8f0;
-  --blue: #2563eb;
-  --blue-soft: #dbeafe;
-  --amber: #f59e0b;
-  --amber-soft: #fef3c7;
+  --ink: #101828;
+  --muted: #667085;
+  --line: #e5e7eb;
+  --accent: #0f766e;
+  --accent-dark: #115e59;
+  --accent-soft: #f0fdfa;
+  --accent-ring: rgba(15, 118, 110, 0.16);
+  --amber: #d97706;
+  --amber-soft: #fef9e7;
   --danger: #dc2626;
+  --danger-soft: #fef2f2;
+  --radius: 12px;
 }
+
 * { box-sizing: border-box; }
+
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, sans-serif;
   background: var(--bg);
   color: var(--ink);
-  line-height: 1.5;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
 }
-.wrap { max-width: 860px; margin: 0 auto; padding: 0 16px; }
+
+input, select, button { font: inherit; color: inherit; }
+
+.wrap { max-width: 880px; margin: 0 auto; padding: 0 16px; }
+
+/* ---- Header ---- */
 .hero {
-  background: linear-gradient(135deg, #1e3a8a, #2563eb);
+  background: var(--accent);
   color: #fff;
-  padding: 40px 0 32px;
-  margin-bottom: 24px;
+  padding: 48px 0 40px;
+  margin-bottom: 32px;
 }
-.hero h1 { margin: 0 0 8px; font-size: 2rem; }
-.tagline { margin: 0; opacity: 0.9; font-size: 1.05rem; }
+.hero h1 {
+  margin: 0 0 8px;
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.tagline { margin: 0; color: rgba(255, 255, 255, 0.88); font-size: 1.05rem; }
+
+/* ---- Cards ---- */
 .card {
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: 14px;
-  padding: 22px;
-  margin-bottom: 20px;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+  border-radius: var(--radius);
+  padding: 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
 }
-.card h2 { margin: 0 0 12px; font-size: 1.25rem; }
+.card h2 {
+  margin: 0 0 12px;
+  font-size: 1.2rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
 .card-head {
   display: flex; justify-content: space-between; align-items: center;
-  flex-wrap: wrap; gap: 10px; margin-bottom: 12px;
+  flex-wrap: wrap; gap: 12px; margin-bottom: 16px;
 }
 .card-head h2 { margin: 0; }
 .pill {
-  background: var(--blue-soft); color: var(--blue);
+  background: var(--accent-soft); color: var(--accent-dark);
+  border: 1px solid rgba(15, 118, 110, 0.18);
   border-radius: 999px; padding: 2px 12px; font-size: 0.85rem; font-weight: 600;
+  white-space: nowrap;
 }
-.head-actions { display: flex; gap: 8px; }
+.head-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ---- Buttons ---- */
 .btn {
   border: 1px solid var(--line); background: #fff; color: var(--ink);
-  border-radius: 8px; padding: 8px 14px; font-size: 0.9rem; cursor: pointer;
+  border-radius: 10px; padding: 10px 16px; font-size: 0.92rem; font-weight: 500;
+  cursor: pointer; min-height: 40px; line-height: 1.2;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
-.btn:hover { background: #f8fafc; }
-.btn.primary { background: var(--blue); border-color: var(--blue); color: #fff; font-weight: 600; }
-.btn.primary:hover { background: #1d4ed8; }
+.btn:hover { background: #f8fafc; border-color: #d1d5db; }
+.btn:focus-visible, .icon-btn:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+.btn.primary {
+  background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600;
+}
+.btn.primary:hover { background: var(--accent-dark); border-color: var(--accent-dark); }
 .btn.ghost.danger { color: var(--danger); }
+.btn.ghost.danger:hover { background: var(--danger-soft); border-color: #fecaca; }
+
+/* ---- Debt entry form ---- */
 .debt-form {
   display: grid; grid-template-columns: 2fr 1fr 1fr 1fr auto;
-  gap: 8px; margin-bottom: 8px;
+  gap: 12px; margin-bottom: 8px; align-items: start;
 }
 .debt-form input {
-  border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; font-size: 0.95rem;
+  border: 1px solid var(--line); border-radius: 10px;
+  padding: 10px 12px; font-size: 0.95rem; min-height: 44px; width: 100%;
+  background: #fff;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
-.error { color: var(--danger); min-height: 1.2em; margin: 4px 0; font-size: 0.9rem; }
+.debt-form input::placeholder { color: #98a2b3; }
+.debt-form input:focus {
+  outline: none; border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+.error { color: var(--danger); min-height: 1.2em; margin: 8px 0; font-size: 0.9rem; }
+
+/* ---- Debt list ---- */
 .debt-list { list-style: none; margin: 8px 0 0; padding: 0; }
 .debt-row {
-  display: flex; justify-content: space-between; align-items: center;
-  border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px;
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px; margin-bottom: 8px;
+  background: #fff;
 }
-.debt-row .debt-meta { display: block; color: var(--muted); font-size: 0.88rem; }
+.debt-row strong { font-weight: 600; }
+.debt-row .debt-meta { display: block; color: var(--muted); font-size: 0.88rem; margin-top: 2px; }
 .icon-btn {
   border: none; background: none; color: var(--muted); cursor: pointer;
-  font-size: 1rem; padding: 6px; border-radius: 6px;
+  font-size: 1rem; padding: 8px; border-radius: 8px; line-height: 1;
+  min-width: 40px; min-height: 40px;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: color 0.15s ease, background 0.15s ease;
 }
-.icon-btn:hover { color: var(--danger); background: #fef2f2; }
-.empty { color: var(--muted); border: 1px dashed var(--line); border-radius: 10px; padding: 16px; text-align: center; }
-.total-line { text-align: right; font-size: 1.05rem; margin: 12px 0 0; }
+.icon-btn:hover { color: var(--danger); background: var(--danger-soft); }
+.icon-btn svg { width: 14px; height: 14px; display: block; }
+.empty {
+  color: var(--muted); border: 1px dashed var(--line); border-radius: 10px;
+  padding: 24px 16px; text-align: center;
+}
+.total-line { text-align: right; font-size: 1.05rem; margin: 16px 0 0; }
 .muted { color: var(--muted); }
-.slider { width: 100%; accent-color: var(--blue); margin-top: 8px; }
-.slider-labels { display: flex; justify-content: space-between; color: var(--muted); font-size: 0.85rem; }
+
+/* ---- Slider ---- */
+.slider { width: 100%; accent-color: var(--accent); margin-top: 12px; min-height: 40px; }
+.slider:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.slider-labels {
+  display: flex; justify-content: space-between;
+  color: var(--muted); font-size: 0.85rem; margin-top: 4px;
+}
+
+/* ---- Strategy showdown ---- */
 .showdown { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-@media (max-width: 640px) { .showdown { grid-template-columns: 1fr; } .debt-form { grid-template-columns: 1fr 1fr; } }
 .strat-card {
-  border: 2px solid var(--line); border-radius: 12px; padding: 18px;
+  border: 2px solid var(--line); border-radius: var(--radius); padding: 24px;
+  transition: border-color 0.2s ease;
 }
-.strat-card.winner { border-color: var(--blue); background: #f8fbff; }
-.strat-card h3 { margin: 0 0 4px; }
-.strat-desc { color: var(--muted); font-size: 0.9rem; margin: 0 0 12px; }
+.strat-card.winner { border-color: var(--accent); background: var(--accent-soft); }
+.strat-card h3 { margin: 0 0 4px; font-size: 1.05rem; font-weight: 650; }
+.strat-desc { color: var(--muted); font-size: 0.9rem; margin: 0 0 16px; }
 .winner-badge {
-  display: inline-block; background: var(--blue-soft); color: var(--blue);
-  font-weight: 700; font-size: 0.85rem; border-radius: 999px; padding: 3px 12px; margin-bottom: 10px;
+  display: inline-block; background: var(--accent); color: #fff;
+  font-weight: 600; font-size: 0.82rem; border-radius: 999px; padding: 4px 12px; margin-bottom: 12px;
 }
-.winner-badge.placeholder { background: transparent; }
-.big-date { font-size: 1.9rem; font-weight: 800; margin: 4px 0 10px; }
+.winner-badge.placeholder { background: transparent; padding: 4px 0; }
+.big-date { font-size: 1.9rem; font-weight: 750; letter-spacing: -0.02em; margin: 4px 0 12px; }
 .stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .stat-num { display: block; font-weight: 700; font-size: 1.05rem; }
 .stat-label { font-size: 0.8rem; color: var(--muted); }
 .stalled { color: var(--danger); font-weight: 600; }
+
+/* ---- Chart ---- */
 #chart { width: 100%; height: auto; display: block; }
+
+/* ---- Journey ---- */
 .motivation {
-  background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px;
-  padding: 14px 16px; font-size: 1rem;
+  background: var(--accent-soft); border: 1px solid rgba(15, 118, 110, 0.2); border-radius: 10px;
+  padding: 16px; font-size: 1rem; margin: 0 0 8px;
 }
-.prog-row { margin: 12px 0; }
-.prog-top { display: flex; justify-content: space-between; font-size: 0.92rem; margin-bottom: 4px; }
-.prog-top span { color: var(--muted); }
-.prog-bar { height: 10px; background: var(--line); border-radius: 999px; overflow: hidden; }
-.prog-fill { height: 100%; background: linear-gradient(90deg, var(--blue), #60a5fa); border-radius: 999px; transition: width 0.4s; }
-.foot { text-align: center; color: var(--muted); font-size: 0.88rem; padding: 12px 0 40px; }
-code { background: #f1f5f9; padding: 1px 6px; border-radius: 4px; }
+.prog-row { margin: 16px 0; }
+.prog-row:last-child { margin-bottom: 0; }
+.prog-top { display: flex; justify-content: space-between; gap: 12px; font-size: 0.92rem; margin-bottom: 6px; }
+.prog-top strong { font-weight: 600; }
+.prog-top span { color: var(--muted); text-align: right; }
+.prog-bar { height: 10px; background: #eef0f3; border-radius: 999px; overflow: hidden; }
+.prog-fill {
+  height: 100%; background: var(--accent); border-radius: 999px;
+  transition: width 0.4s ease;
+}
+
+/* ---- Footer ---- */
+.foot { text-align: center; color: var(--muted); font-size: 0.88rem; padding: 16px 0 48px; }
+.foot p { margin: 8px 0; }
+code { background: #eef0f3; padding: 2px 6px; border-radius: 4px; font-size: 0.85em; }
+
+/* ---- Responsive ---- */
+@media (max-width: 640px) {
+  .wrap { padding: 0 12px; }
+  .hero { padding: 36px 0 32px; margin-bottom: 24px; }
+  .hero h1 { font-size: 1.6rem; }
+  .tagline { font-size: 0.98rem; }
+  .card { padding: 16px; margin-bottom: 16px; }
+  .showdown { grid-template-columns: 1fr; }
+  .debt-form { grid-template-columns: 1fr; }
+  .debt-form .btn { width: 100%; }
+  .big-date { font-size: 1.5rem; }
+  .stat-grid { grid-template-columns: 1fr; gap: 12px; }
+  .card-head { flex-direction: column; align-items: stretch; }
+  .head-actions { width: 100%; }
+  .head-actions .btn { flex: 1; }
+}

@@ -31,7 +31,8 @@
     li.innerHTML =
       '<div class="debt-info"><strong></strong>' +
       '<span class="debt-meta"></span></div>' +
-      '<button class="icon-btn" title="Remove" aria-label="Remove debt">✕</button>';
+      '<button class="icon-btn" title="Remove" aria-label="Remove debt">' +
+      '<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M2 2l10 10M12 2L2 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>';
     li.querySelector('strong').textContent = d.name;
     li.querySelector('.debt-meta').textContent =
       D.money(d.balance) + ' @ ' + d.apr + '% APR · min ' + D.money(d.min) + '/mo';
@@ -47,10 +48,10 @@
     var card = document.createElement('div');
     card.className = 'strat-card' + (isWinner ? ' winner' : '');
     var body = isWinner
-      ? '<div class="winner-badge">🏆 Pays the least interest</div>'
+      ? '<div class="winner-badge">Pays the least interest</div>'
       : '<div class="winner-badge placeholder">&nbsp;</div>';
     if (res.stalled) {
-      body += '<p class="stalled">⚠️ With these payments the balance never shrinks — minimums don\'t cover the interest. Raise the extra payment.</p>';
+      body += '<p class="stalled">With these payments the balance never shrinks — minimums don\'t cover the interest. Raise the extra payment.</p>';
     } else {
       body +=
         '<div class="big-date">' + D.fmtDate(res.payoffDate) + '</div>' +
@@ -101,8 +102,8 @@
     ay.setAttribute('stroke', '#cbd5e1'); svg.appendChild(ay);
 
     line(cmp.baseline.schedule, '#cbd5e1', true);
-    line(cmp.snowball.schedule, '#f59e0b', false);
-    line(cmp.avalanche.schedule, '#2563eb', false);
+    line(cmp.snowball.schedule, '#d97706', false);
+    line(cmp.avalanche.schedule, '#0f766e', false);
 
     function label(x, y, text, color) {
       var t = document.createElementNS(NS, 'text');
@@ -112,8 +113,8 @@
     }
     label(PAD, H - 12, 'Debt-free →', '#64748b');
     var lx = W - 150;
-    label(lx, 24, '— Avalanche', '#2563eb');
-    label(lx, 42, '— Snowball', '#f59e0b');
+    label(lx, 24, '— Avalanche', '#0f766e');
+    label(lx, 42, '— Snowball', '#d97706');
     label(lx, 60, '- - Minimums only', '#94a3b8');
   }
 
@@ -148,21 +149,21 @@
       return 'Your minimums don\'t cover the interest right now — every month the balance grows. ' +
         'Nudge the extra payment up until the chart bends downward. Even $25 changes the math.';
     }
-    msgs.push('🎯 Debt-free by ' + D.fmtDate(best.payoffDate) + ' — ' + best.months + ' months from now.');
+    msgs.push('Debt-free by ' + D.fmtDate(best.payoffDate) + ' — ' + best.months + ' months from now.');
     if (cmp.interestSavedVsMinimums > 0) {
-      msgs.push('💰 That extra ' + D.money(extra) + '/mo saves you ' + D.money(cmp.interestSavedVsMinimums) +
+      msgs.push('That extra ' + D.money(extra) + '/mo saves you ' + D.money(cmp.interestSavedVsMinimums) +
         ' in interest and ' + cmp.monthsSavedVsMinimums + ' months versus paying minimums only.');
     }
     var diff = Math.abs(cmp.avalanche.totalInterest - cmp.snowball.totalInterest);
     if (diff > 1) {
       var w = cmp.winner === 'avalanche' ? 'Avalanche' : 'Snowball';
-      msgs.push('⚖️ ' + w + ' wins this round, saving ' + D.money(diff) + ' in interest over the other strategy.');
+      msgs.push(w + ' wins this round, saving ' + D.money(diff) + ' in interest over the other strategy.');
     } else {
-      msgs.push('⚖️ Both strategies cost nearly the same here — pick the one that keeps you motivated.');
+      msgs.push('Both strategies cost nearly the same here — pick the one that keeps you motivated.');
     }
     var first = best.perDebt.slice().sort(function (a, b) { return (a.payoffMonth || 1e9) - (b.payoffMonth || 1e9); })[0];
     if (first && first.payoffMonth) {
-      msgs.push('🚀 First win: "' + first.name + '" is gone by ' + D.fmtDate(D.addMonths(new Date(), first.payoffMonth)) + '. Roll its payment into the next debt.');
+      msgs.push('First win: "' + first.name + '" is gone by ' + D.fmtDate(D.addMonths(new Date(), first.payoffMonth)) + '. Roll its payment into the next debt.');
     }
     return msgs.join(' ');
   }
@@ -197,10 +198,10 @@
     var showdown = el('showdown');
     showdown.innerHTML = '';
     showdown.appendChild(strategyCard(
-      '❄️ Snowball', 'Pay smallest balance first. Quick wins keep motivation high.',
+      'Snowball', 'Pay smallest balance first. Quick wins keep motivation high.',
       cmp.snowball, cmp.winner === 'snowball'));
     showdown.appendChild(strategyCard(
-      '🏔️ Avalanche', 'Pay highest APR first. Mathematically the cheapest route.',
+      'Avalanche', 'Pay highest APR first. Mathematically the cheapest route.',
       cmp.avalanche, cmp.winner === 'avalanche'));
 
     drawChart(cmp);
