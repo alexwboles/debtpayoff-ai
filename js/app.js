@@ -102,8 +102,8 @@
     ay.setAttribute('stroke', '#cbd5e1'); svg.appendChild(ay);
 
     line(cmp.baseline.schedule, '#cbd5e1', true);
-    line(cmp.snowball.schedule, '#d97706', false);
-    line(cmp.avalanche.schedule, '#0f766e', false);
+    line(cmp.snowball.schedule, '#b3261e', false);
+    line(cmp.avalanche.schedule, '#1e2a38', false);
 
     function label(x, y, text, color) {
       var t = document.createElementNS(NS, 'text');
@@ -113,8 +113,8 @@
     }
     label(PAD, H - 12, 'Debt-free →', '#64748b');
     var lx = W - 150;
-    label(lx, 24, '— Avalanche', '#0f766e');
-    label(lx, 42, '— Snowball', '#d97706');
+    label(lx, 24, '— Avalanche', '#1e2a38');
+    label(lx, 42, '— Snowball', '#b3261e');
     label(lx, 60, '- - Minimums only', '#94a3b8');
   }
 
