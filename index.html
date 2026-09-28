@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DebtPayoff AI — Your debt-free date, calculated</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header class="hero">
+  <div class="wrap">
+    <h1>💸 DebtPayoff AI</h1>
+    <p class="tagline">Enter your debts. See your debt-free date. Watch the interest melt.</p>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="card">
+    <div class="card-head">
+      <h2>Your debts <span id="debtCount" class="pill">0 debts</span></h2>
+      <div class="head-actions">
+        <button id="sampleBtn" class="btn ghost">Try sample data</button>
+        <button id="clearBtn" class="btn ghost danger">Clear all</button>
+      </div>
+    </div>
+    <form class="debt-form" onsubmit="return false;">
+      <input id="fName" type="text" placeholder="Debt name (e.g. Visa)" maxlength="60">
+      <input id="fBalance" type="number" min="0" step="0.01" placeholder="Balance ($)">
+      <input id="fApr" type="number" min="0" step="0.01" placeholder="APR (%)">
+      <input id="fMin" type="number" min="0" step="0.01" placeholder="Min payment ($/mo)">
+      <button id="addDebt" class="btn primary" type="submit">Add debt</button>
+    </form>
+    <p id="formError" class="error"></p>
+    <ul id="debtList" class="debt-list"></ul>
+    <p class="total-line">Total owed: <strong id="totalOwed">$0.00</strong></p>
+  </section>
+
+  <div id="results">
+    <section class="card">
+      <h2>Extra payment attack <span id="extraVal" class="pill">$150.00/mo</span></h2>
+      <p class="muted">Every dollar above the minimums goes straight at one target debt — and when a debt dies, its minimum rolls into the attack too.</p>
+      <input id="extraRange" type="range" min="0" max="1000" step="25" value="150" class="slider">
+      <div class="slider-labels"><span>$0</span><span>$1,000/mo</span></div>
+    </section>
+
+    <section class="card">
+      <h2>Strategy showdown</h2>
+      <div id="showdown" class="showdown"></div>
+    </section>
+
+    <section class="card">
+      <h2>Balance over time</h2>
+      <svg id="chart" role="img" aria-label="Projected total balance over time"></svg>
+    </section>
+
+    <section class="card">
+      <h2>Your payoff journey</h2>
+      <p id="motivation" class="motivation"></p>
+      <div id="progressList"></div>
+    </section>
+  </div>
+
+  <footer class="foot">
+    <p>🔒 100% local — your debts never leave this browser. Optional <code>OPENAI_API_KEY</code> may power future AI coaching; everything works without it.</p>
+    <p class="muted">General educational math, not financial advice.</p>
+  </footer>
+</main>
+
+<script src="js/debt.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
