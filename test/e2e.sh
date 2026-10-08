@@ -65,6 +65,52 @@ expectDate.getFullYear() === av.payoffDate.getFullYear() && expectDate.getMonth(
   ? ok('flow7: debt-free date = ' + D.fmtDate(av.payoffDate))
   : bad('flow7: payoff date mismatch');
 
+// Flow 8: monthly rows reconcile with the headline numbers
+const mSum = av.monthly.reduce((s, m) => s + m.payment, 0);
+const iSum = av.monthly.reduce((s, m) => s + m.interest, 0);
+const mLast = av.monthly[av.monthly.length - 1];
+(Math.abs(mSum - av.totalPaid) < 1 && Math.abs(iSum - av.totalInterest) < 1)
+  ? ok('flow8: monthly payments sum to ' + D.money(mSum) + ' ≈ totalPaid; interest sums to ' + D.money(iSum))
+  : bad('flow8: monthly sums off (paid ' + mSum + ' vs ' + av.totalPaid + ')');
+(mLast.month === av.months && mLast.balance < 0.01 && av.monthly[1].interest > 0 && av.monthly[1].payment > av.monthly[1].interest)
+  ? ok('flow8: monthly rows carry date/payment/interest/balance; final row ~$0') : bad('flow8: monthly row shape wrong');
+const decreasing = av.monthly.every((m, i) => i === 0 || m.balance <= av.monthly[i - 1].balance + 0.01);
+decreasing ? ok('flow8: balance never rises month-to-month on a paying plan') : bad('flow8: balance rose mid-plan');
+
+// Flow 9: target-date reverse calculator
+const early = D.addMonths(start, Math.max(2, Math.floor(av.months / 2)));
+const earlyISO = early.getFullYear() + '-' + String(early.getMonth() + 1).padStart(2, '0') + '-' + String(early.getDate()).padStart(2, '0');
+const r = D.extraForTargetDate(debts, earlyISO, start);
+(r.ok && r.extraMonthly > 150 && Number.isInteger(r.extraMonthly))
+  ? ok('flow9: beating ' + D.fmtDate(av.payoffDate) + ' by ~half needs ' + D.money(r.extraMonthly) + '/mo extra (whole dollars)')
+  : bad('flow9: reverse calc failed: ' + JSON.stringify(r).slice(0, 100));
+const verify = D.simulate(debts, r.strategy, r.extraMonthly, start);
+(!verify.stalled && verify.payoffDate <= D.parseISODate(earlyISO))
+  ? ok('flow9: paying ' + D.money(r.extraMonthly) + '/mo extra really hits the target (' + D.fmtDate(verify.payoffDate) + ')')
+  : bad('flow9: verification simulation missed the target');
+const past = D.extraForTargetDate(debts, '2020-01-01', start);
+const junk = D.extraForTargetDate(debts, 'not-a-date', start);
+const none = D.extraForTargetDate([], earlyISO, start);
+(!past.ok && !junk.ok && !none.ok)
+  ? ok('flow9: past date, bad date, and no debts all return errors') : bad('flow9: error paths broken');
+const easy = D.extraForTargetDate(debts, '2035-01-01', start);
+(easy.ok && easy.extraMonthly === 0)
+  ? ok('flow9: far-future target needs $0 extra (minimums already get there)') : bad('flow9: easy target: ' + JSON.stringify(easy));
+
+// Flow 10: schedule CSV export round-trips the winning plan
+const csv = D.scheduleToCSV(av);
+const csvRows = csv.split('\r\n');
+(csvRows[0] === 'Month,Date,Payment,Interest,Principal,Balance' && csvRows.length === av.months + 2)
+  ? ok('flow10: CSV header + ' + (csvRows.length - 1) + ' monthly rows (incl. month 0)')
+  : bad('flow10: csv rows=' + csvRows.length + ', want ' + (av.months + 2));
+const lastRow = csvRows[csvRows.length - 1].split(',');
+(parseFloat(lastRow[5]) < 0.01 && parseInt(lastRow[0], 10) === av.months)
+  ? ok('flow10: final CSV row = month ' + av.months + ' at ~$0.00 balance') : bad('flow10: final row: ' + csvRows[csvRows.length - 1]);
+
+// Flow 11: parseISODate validation
+(D.parseISODate('2027-03-15') instanceof Date && D.parseISODate('2027-13-01') === null && D.parseISODate('15/03/2027') === null && D.parseISODate('') === null)
+  ? ok('flow11: parseISODate accepts YYYY-MM-DD only') : bad('flow11: parseISODate');
+
 console.log('---');
 console.log('E2E PASS: ' + pass + '  FAIL: ' + fail);
 process.exit(fail ? 1 : 0);

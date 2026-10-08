@@ -26,23 +26,73 @@
   function el(id) { return document.getElementById(id); }
 
   function debtRow(d) {
+    if (editingId === d.id) return debtEditRow(d);
     var li = document.createElement('li');
     li.className = 'debt-row';
     li.innerHTML =
       '<div class="debt-info"><strong></strong>' +
       '<span class="debt-meta"></span></div>' +
+      '<div class="debt-actions">' +
+      '<button class="icon-btn edit-btn" title="Edit" aria-label="Edit debt">' +
+      '<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M10.5 2.5l1 1L5 10H4V9l6.5-6.5zM12.5 1.5l-1-1-1.5 1.5 1 1 1.5-1.5zM2 12l.5-2L9 3.5l1.5 1.5L4 11.5 2 12z" fill="currentColor"/></svg></button>' +
       '<button class="icon-btn" title="Remove" aria-label="Remove debt">' +
-      '<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M2 2l10 10M12 2L2 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>';
+      '<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M2 2l10 10M12 2L2 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>';
     li.querySelector('strong').textContent = d.name;
     li.querySelector('.debt-meta').textContent =
       D.money(d.balance) + ' @ ' + d.apr + '% APR · min ' + D.money(d.min) + '/mo';
-    li.querySelector('button').addEventListener('click', function () {
+    li.querySelector('.edit-btn').addEventListener('click', function () {
+      editingId = d.id;
+      render();
+    });
+    li.querySelectorAll('.icon-btn')[1].addEventListener('click', function () {
       var debts = loadDebts().filter(function (x) { return x.id !== d.id; });
       saveDebts(debts);
       render();
     });
     return li;
   }
+
+  function debtEditRow(d) {
+    var li = document.createElement('li');
+    li.className = 'debt-row editing';
+    li.innerHTML =
+      '<div class="debt-edit-grid">' +
+      '<input type="text" id="eName" value="" maxlength="60" aria-label="Debt name">' +
+      '<input type="number" id="eBalance" min="0" step="0.01" aria-label="Balance">' +
+      '<input type="number" id="eApr" min="0" step="0.01" aria-label="APR">' +
+      '<input type="number" id="eMin" min="0" step="0.01" aria-label="Minimum payment">' +
+      '<button class="btn primary btn-mini" id="eSave">Save</button>' +
+      '<button class="btn ghost btn-mini" id="eCancel">Cancel</button></div>' +
+      '<p class="error" id="eError"></p>';
+    li.querySelector('#eName').value = d.name;
+    li.querySelector('#eBalance').value = d.balance;
+    li.querySelector('#eApr').value = d.apr;
+    li.querySelector('#eMin').value = d.min;
+    li.querySelector('#eSave').addEventListener('click', function () {
+      var name = li.querySelector('#eName').value.trim();
+      var balance = parseFloat(li.querySelector('#eBalance').value);
+      var apr = parseFloat(li.querySelector('#eApr').value);
+      var min = parseFloat(li.querySelector('#eMin').value);
+      if (!name || !(balance > 0)) {
+        li.querySelector('#eError').textContent = 'Name and a balance above $0 are required.';
+        return;
+      }
+      var debts = loadDebts().map(function (x) {
+        if (x.id !== d.id) return x;
+        return { id: x.id, name: name, balance: balance, apr: isNaN(apr) ? 0 : apr, min: isNaN(min) ? 0 : min };
+      });
+      saveDebts(debts);
+      editingId = null;
+      render();
+    });
+    li.querySelector('#eCancel').addEventListener('click', function () {
+      editingId = null;
+      render();
+    });
+    return li;
+  }
+
+  var editingId = null;
 
   function strategyCard(title, desc, res, isWinner) {
     var card = document.createElement('div');
@@ -116,6 +166,47 @@
     label(lx, 24, '— Avalanche', '#1e2a38');
     label(lx, 42, '— Snowball', '#b3261e');
     label(lx, 60, '- - Minimums only', '#94a3b8');
+  }
+
+  function renderScheduleTable(cmp) {
+    var box = el('scheduleTable');
+    box.innerHTML = '';
+    var res = cmp[cmp.winner];
+    if (res.stalled || !res.monthly || res.monthly.length < 2) {
+      box.innerHTML = '<p class="muted">No schedule to show yet — the current payments never pay the balance down.</p>';
+      return;
+    }
+    var table = document.createElement('table');
+    table.className = 'sched-table';
+    var html = '<thead><tr><th>#</th><th>Month</th><th class="num">Payment</th><th class="num">Interest</th><th class="num">Principal</th><th class="num">Balance</th></tr></thead><tbody>';
+    res.monthly.forEach(function (m) {
+      if (m.month === 0) return;
+      var principal = Math.max(0, Math.round((m.payment - m.interest) * 100) / 100);
+      html += '<tr><td>' + m.month + '</td><td>' + D.fmtDate(m.date instanceof Date ? m.date : new Date(m.date)) + '</td>' +
+        '<td class="num">' + D.money(m.payment) + '</td><td class="num neg">' + D.money(m.interest) + '</td>' +
+        '<td class="num">' + D.money(principal) + '</td><td class="num"><b>' + D.money(m.balance) + '</b></td></tr>';
+    });
+    table.innerHTML = html + '</tbody>';
+    box.appendChild(table);
+    var note = document.createElement('p');
+    note.className = 'muted small';
+    note.textContent = 'Showing the ' + cmp.winner + ' plan (' + res.months + ' payments).';
+    box.appendChild(note);
+  }
+
+  function runTargetCalc() {
+    var out = el('targetResult');
+    var debts = loadDebts();
+    var r = D.extraForTargetDate(debts, el('targetDate').value);
+    if (!r.ok) {
+      out.innerHTML = '<p class="error">' + r.error + '</p>';
+      return;
+    }
+    var stratName = r.strategy === 'avalanche' ? 'Avalanche' : 'Snowball';
+    out.innerHTML = r.extraMonthly === 0
+      ? '<p class="target-ok">Your minimums already get you there — debt-free by <b>' + D.fmtDate(r.payoffDate) + '</b> with no extra payment.</p>'
+      : '<p class="target-ok">Pay an extra <b>' + D.money(r.extraMonthly) + '/mo</b> and you\'re debt-free by <b>' +
+        D.fmtDate(r.payoffDate) + '</b> — ' + r.months + ' months via ' + stratName + '.</p>';
   }
 
   function renderProgress(cmp) {
@@ -206,6 +297,7 @@
 
     drawChart(cmp);
     renderProgress(cmp);
+    renderScheduleTable(cmp);
     el('motivation').textContent = motivational(cmp, extra);
   }
 
@@ -252,6 +344,22 @@
       saveExtra(parseFloat(e.target.value) || 0);
       render();
     });
+    el('targetCalc').addEventListener('click', runTargetCalc);
+    el('targetDate').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); runTargetCalc(); } });
+    el('schedCsv').addEventListener('click', function () {
+      var debts = loadDebts();
+      if (!debts.length) return;
+      var cmp = D.compare(debts, loadExtra());
+      var csv = D.scheduleToCSV(cmp[cmp.winner]);
+      var blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'debtpayoff-schedule-' + cmp.winner + '.csv';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+    });
+    el('printPlan').addEventListener('click', function () { window.print(); });
     render();
   });
 })();

@@ -64,11 +64,41 @@ const cmp = D.compare(debts, 200, new Date(2026, 0, 1));
 ['avalanche', 'snowball'].includes(cmp.winner) ? ok('compare() picks a winner: ' + cmp.winner) : bad('compare() winner broken');
 cmp.interestSavedVsMinimums >= 0 ? ok('savings vs minimums computed: ' + D.money(cmp.interestSavedVsMinimums)) : bad('savings negative');
 
+// --- new features ---
+// monthly rows: payment/interest/balance per month, sums reconcile
+const mPay = av.monthly.reduce((s, m) => s + m.payment, 0);
+const mInt = av.monthly.reduce((s, m) => s + m.interest, 0);
+(Math.abs(mPay - av.totalPaid) < 1 && Math.abs(mInt - av.totalInterest) < 1 && av.monthly.length === av.months + 1)
+  ? ok('monthly rows: ' + av.monthly.length + ' rows, sums reconcile with totals') : bad('monthly rows broken');
+av.monthly.every(m => m.date instanceof Date && typeof m.payment === 'number' && typeof m.interest === 'number')
+  ? ok('monthly rows carry date/payment/interest') : bad('monthly row shape');
+
+// extraForTargetDate: reachable target, errors, whole-dollar rounding
+const tgt = D.extraForTargetDate(debts, '2027-06-01', new Date(2026, 0, 1));
+(tgt.ok && tgt.extraMonthly > 0 && Number.isInteger(tgt.extraMonthly))
+  ? ok('extraForTargetDate: ' + D.money(tgt.extraMonthly) + '/mo to be free by Jun 2027') : bad('extraForTargetDate: ' + JSON.stringify(tgt));
+const vfy = D.simulate(debts, tgt.strategy, tgt.extraMonthly, new Date(2026, 0, 1));
+(!vfy.stalled && vfy.payoffDate <= D.parseISODate('2027-06-01'))
+  ? ok('extraForTargetDate verifies: simulation hits the target') : bad('target verification failed');
+(!D.extraForTargetDate(debts, '2025-01-01', new Date(2026, 0, 1)).ok && !D.extraForTargetDate(debts, 'junk', new Date(2026, 0, 1)).ok)
+  ? ok('extraForTargetDate rejects past and malformed dates') : bad('extraForTargetDate error paths');
+
+// scheduleToCSV: header + row count + final balance ~0
+const scsv = D.scheduleToCSV(av);
+const slines = scsv.split('\r\n');
+(slines[0] === 'Month,Date,Payment,Interest,Principal,Balance' && slines.length === av.months + 2)
+  ? ok('scheduleToCSV: header + ' + (slines.length - 1) + ' rows') : bad('scheduleToCSV: ' + slines.length + ' lines');
+
 console.log('---');
 console.log('NODE PASS: ' + pass + '  FAIL: ' + fail);
 process.exit(fail ? 1 : 0);
 NODEEOF
-[ "$?" -eq 0 ] && ok "node logic suite green" || bad "node logic suite had failures"
+[ $? -eq 0 ] && ok "node logic checks green" || bad "node logic checks had failures"
+
+# new UI hooks in index.html
+for id in targetDate targetCalc targetResult scheduleTable schedCsv printPlan; do
+  grep -q "id=\"$id\"" index.html && ok "index.html has #$id" || bad "index.html missing #$id"
+done
 
 echo "---"
 echo "SMOKE PASS: $PASS  FAIL: $FAIL"

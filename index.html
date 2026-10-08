@@ -28,6 +28,7 @@
       <h2>Your debts <span id="debtCount" class="pill">0 debts</span></h2>
       <div class="head-actions">
         <button id="sampleBtn" class="btn ghost">Try sample data</button>
+        <button id="printPlan" class="btn ghost">Print plan</button>
         <button id="clearBtn" class="btn ghost danger">Clear all</button>
       </div>
     </div>
@@ -52,6 +53,16 @@
     </section>
 
     <section class="card">
+      <h2>Debt-free by a date</h2>
+      <p class="muted">Pick the date you want to be debt-free — we'll work backwards to the exact extra payment it takes.</p>
+      <div class="target-row">
+        <input id="targetDate" type="date" aria-label="Target debt-free date">
+        <button id="targetCalc" class="btn primary">What will it take?</button>
+      </div>
+      <div id="targetResult" style="margin-top:12px"></div>
+    </section>
+
+    <section class="card">
       <h2>Strategy showdown</h2>
       <div id="showdown" class="showdown"></div>
     </section>
@@ -65,6 +76,17 @@
       <h2>Your payoff journey</h2>
       <p id="motivation" class="motivation"></p>
       <div id="progressList"></div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>Month-by-month schedule</h2>
+        <div class="head-actions">
+          <button id="schedCsv" class="btn ghost">Export CSV</button>
+        </div>
+      </div>
+      <p class="muted">Every payment on the winning plan — payment, interest, principal, and remaining balance.</p>
+      <div id="scheduleTable" class="tablewrap"></div>
     </section>
   </div>
 

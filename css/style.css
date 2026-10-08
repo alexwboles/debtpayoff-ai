@@ -219,3 +219,38 @@ input[type="range"].slider:focus-visible { box-shadow: var(--ring); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* ---------- new: inline debt editing, target calculator, schedule table ---------- */
+.debt-actions { display: flex; gap: 6px; flex: none; }
+.debt-row.editing { background: var(--paper); }
+.debt-edit-grid {
+  display: grid; grid-template-columns: 1.6fr 1fr 1fr 1fr auto auto;
+  gap: 10px; align-items: center; width: 100%;
+}
+.debt-edit-grid .error { grid-column: 1 / -1; }
+.btn-mini { padding: 8px 14px; font-size: 13px; }
+
+.target-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.target-row input { max-width: 220px; }
+.target-ok {
+  background: var(--pine-soft); border: 1px solid var(--border);
+  color: var(--pine); border-radius: 0; padding: 14px 16px; font-size: 15px;
+}
+
+.sched-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.sched-table th, .sched-table td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border-soft, #eee); }
+.sched-table th { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.sched-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.sched-table .neg { color: var(--crimson); }
+.tablewrap { overflow-x: auto; }
+
+/* ---------- print: clean payoff plan ---------- */
+@media print {
+  .hero, footer.foot, .head-actions, .debt-form, #formError, .slider, .slider-labels,
+  .target-row, #schedCsv, .debt-actions, .debt-edit-grid, #targetResult .error { display: none !important; }
+  body { background: #fff; }
+  .wrap { max-width: none; padding: 0 8px; }
+  .card { box-shadow: none; break-inside: avoid; border: 1px solid #ccc; }
+  #results { display: block !important; }
+  #chart { break-inside: avoid; }
+}
