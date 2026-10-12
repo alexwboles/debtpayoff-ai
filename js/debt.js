@@ -61,15 +61,21 @@
    * then throw (extraMonthly + rolled-over minimums of paid-off debts)
    * at the single target debt chosen by the strategy.
    *
+   * lumpSums (optional): [{ month, amount }] — one-time extra payments applied
+   * to the strategy's target debt in that month, on top of everything else.
+   *
    * Returns { months, totalInterest, totalPaid, payoffDate, schedule,
    *           monthly, perDebt, stalled, strategy }
    * monthly: per-month rows { month, date, payment, interest, balance }.
    */
-  function simulate(debts, strategy, extraMonthly, fromDate) {
+  function simulate(debts, strategy, extraMonthly, fromDate, lumpSums) {
     var strat = strategy === 'snowball' ? 'snowball' : 'avalanche';
     var ds = cloneDebts(debts).filter(function (d) { return d.balance > 0; });
     var extra = Math.max(0, Number(extraMonthly) || 0);
     var start = fromDate instanceof Date ? new Date(fromDate.getTime()) : new Date();
+    var lumps = (lumpSums || []).filter(function (l) {
+      return l && l.month >= 1 && (Number(l.amount) || 0) > 0;
+    }).map(function (l) { return { month: Math.round(l.month), amount: Number(l.amount) }; });
     var totalInterest = 0, totalPaid = 0, month = 0;
     var schedule = [{ month: 0, balance: round2(totalBalance(ds)) }];
     var monthly = [{ month: 0, date: new Date(start.getTime()), payment: 0, interest: 0, balance: round2(totalBalance(ds)) }];
@@ -125,6 +131,20 @@
         totalPaid += p2;
         monthPayment += p2;
       }
+
+      // 4b. one-time lump sums for this month hit the target debt(s) first
+      lumps.forEach(function (l) {
+        if (l.month !== month) return;
+        var remaining = l.amount;
+        payoffOrder(ds.filter(function (d) { return d.balance > 0.005; }), strat).forEach(function (t) {
+          if (remaining <= 0) return;
+          var p3 = Math.min(remaining, t.balance);
+          t.balance -= p3;
+          totalPaid += p3;
+          monthPayment += p3;
+          remaining -= p3;
+        });
+      });
 
       // 5. stamp payoff months
       ds.forEach(function (d) {

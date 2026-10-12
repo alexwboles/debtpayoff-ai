@@ -4,6 +4,24 @@
   var D = window.DebtPayoff;
   var LS_DEBTS = 'debtpayoff.debts.v1';
   var LS_EXTRA = 'debtpayoff.extra.v1';
+  var LS_STRATEGY = 'debtpayoff.strategy.v1';
+  var LS_CHECKINS = 'debtpayoff.checkins.v1';
+
+  function loadStrategy() {
+    try {
+      var s = localStorage.getItem(LS_STRATEGY);
+      return s === 'snowball' || s === 'avalanche' ? s : null;
+    } catch (e) { return null; }
+  }
+  function saveStrategy(s) {
+    try { localStorage.setItem(LS_STRATEGY, s); } catch (e) {}
+  }
+  function loadCheckins() {
+    try { return JSON.parse(localStorage.getItem(LS_CHECKINS)) || {}; } catch (e) { return {}; }
+  }
+  function saveCheckins(c) {
+    try { localStorage.setItem(LS_CHECKINS, JSON.stringify(c)); } catch (e) {}
+  }
 
   function loadDebts() {
     try {
@@ -27,12 +45,15 @@
 
   function debtRow(d) {
     if (editingId === d.id) return debtEditRow(d);
+    if (checkinId === d.id) return debtCheckinRow(d);
     var li = document.createElement('li');
     li.className = 'debt-row';
     li.innerHTML =
       '<div class="debt-info"><strong></strong>' +
       '<span class="debt-meta"></span></div>' +
       '<div class="debt-actions">' +
+      '<button class="icon-btn checkin-btn" title="Log a balance check-in" aria-label="Log balance check-in">' +
+      '<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M7 1v8M4 6l3 3 3-3M2 11h10v2H2z" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></button>' +
       '<button class="icon-btn edit-btn" title="Edit" aria-label="Edit debt">' +
       '<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M10.5 2.5l1 1L5 10H4V9l6.5-6.5zM12.5 1.5l-1-1-1.5 1.5 1 1 1.5-1.5zM2 12l.5-2L9 3.5l1.5 1.5L4 11.5 2 12z" fill="currentColor"/></svg></button>' +
       '<button class="icon-btn" title="Remove" aria-label="Remove debt">' +
@@ -40,6 +61,10 @@
     li.querySelector('strong').textContent = d.name;
     li.querySelector('.debt-meta').textContent =
       D.money(d.balance) + ' @ ' + d.apr + '% APR · min ' + D.money(d.min) + '/mo';
+    li.querySelector('.checkin-btn').addEventListener('click', function () {
+      checkinId = d.id;
+      render();
+    });
     li.querySelector('.edit-btn').addEventListener('click', function () {
       editingId = d.id;
       render();
@@ -93,8 +118,63 @@
   }
 
   var editingId = null;
+  var checkinId = null;
 
-  function strategyCard(title, desc, res, isWinner) {
+  function todayISO() {
+    var d = new Date();
+    function p(n) { return (n < 10 ? '0' : '') + n; }
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+  }
+
+  // Inline balance check-in row: log the current statement balance so the
+  // plan tracks reality, and build a per-debt payoff history.
+  function debtCheckinRow(d) {
+    var hist = (loadCheckins()[d.id] || []);
+    var last = hist.length ? hist[hist.length - 1].balance : d.balance;
+    var li = document.createElement('li');
+    li.className = 'debt-row editing';
+    li.innerHTML =
+      '<div class="debt-checkin-grid">' +
+      '<span class="chk-label">Check-in: <strong></strong></span>' +
+      '<input type="date" id="cDate" value="' + todayISO() + '" aria-label="Statement date">' +
+      '<input type="number" id="cBalance" min="0" step="0.01" value="' + last + '" aria-label="Current balance">' +
+      '<button class="btn primary btn-mini" id="cSave">Save</button>' +
+      '<button class="btn ghost btn-mini" id="cCancel">Cancel</button></div>' +
+      '<p class="muted small">' + hist.length + ' check-in' + (hist.length === 1 ? '' : 's') +
+      (hist.length ? ' · first logged: ' + D.money(hist[0].balance) + ' on ' + hist[0].date : '') + '</p>' +
+      '<p class="error" id="cError"></p>';
+    li.querySelector('.chk-label strong').textContent = d.name;
+    li.querySelector('#cSave').addEventListener('click', function () {
+      var bal = parseFloat(li.querySelector('#cBalance').value);
+      var dt = li.querySelector('#cDate').value;
+      if (!(bal >= 0) || !/^\d{4}-\d{2}-\d{2}$/.test(dt)) {
+        li.querySelector('#cError').textContent = 'Enter a valid date and a balance of $0 or more.';
+        return;
+      }
+      var all = loadCheckins();
+      var h = all[d.id] || (all[d.id] = []);
+      var ex = h.filter(function (x) { return x.date === dt; })[0];
+      if (ex) ex.balance = bal; else h.push({ date: dt, balance: bal });
+      h.sort(function (a, b) { return a.date < b.date ? -1 : 1; });
+      saveCheckins(all);
+      // the plan now runs on the real balance
+      var debts = loadDebts().map(function (x) {
+        return x.id === d.id
+          ? { id: x.id, name: x.name, balance: bal, apr: x.apr, min: x.min }
+          : x;
+      });
+      saveDebts(debts);
+      checkinId = null;
+      render();
+    });
+    li.querySelector('#cCancel').addEventListener('click', function () {
+      checkinId = null;
+      render();
+    });
+    return li;
+  }
+
+  function strategyCard(key, title, desc, res, isWinner, isFollowing) {
     var card = document.createElement('div');
     card.className = 'strat-card' + (isWinner ? ' winner' : '');
     var body = isWinner
@@ -111,11 +191,13 @@
         '<div><span class="stat-num">' + D.money(res.totalPaid) + '</span><span class="stat-label">total paid</span></div>' +
         '</div>';
     }
-    card.innerHTML = '<h3>' + title + '</h3><p class="strat-desc">' + desc + '</p>' + body;
+    card.innerHTML = '<h3>' + title + '</h3><p class="strat-desc">' + desc + '</p>' + body +
+      '<button class="btn ' + (isFollowing ? 'ghost' : 'primary') + ' btn-mini follow-btn" data-strategy="' + key + '"' +
+      (isFollowing ? ' disabled' : '') + '>' + (isFollowing ? '✓ Your plan' : 'Follow this plan') + '</button>';
     return card;
   }
 
-  function drawChart(cmp) {
+  function drawChart(cmp, chosen) {
     var svg = el('chart');
     while (svg.firstChild) svg.removeChild(svg.firstChild);
     var W = 640, H = 260, PAD = 40;
@@ -131,12 +213,12 @@
       var y = H - PAD - (b / maxBal) * (H - PAD - 20);
       return x.toFixed(1) + ',' + y.toFixed(1);
     }
-    function line(sched, color, dashed) {
+    function line(sched, color, dashed, width) {
       var pl = document.createElementNS(NS, 'polyline');
       pl.setAttribute('points', sched.map(function (p) { return pt(p.month, p.balance); }).join(' '));
       pl.setAttribute('fill', 'none');
       pl.setAttribute('stroke', color);
-      pl.setAttribute('stroke-width', '3');
+      pl.setAttribute('stroke-width', width || '3');
       if (dashed) pl.setAttribute('stroke-dasharray', '7,5');
       pl.setAttribute('stroke-linejoin', 'round');
       svg.appendChild(pl);
@@ -151,9 +233,10 @@
     ay.setAttribute('x2', PAD); ay.setAttribute('y2', H - PAD);
     ay.setAttribute('stroke', '#cbd5e1'); svg.appendChild(ay);
 
-    line(cmp.baseline.schedule, '#cbd5e1', true);
-    line(cmp.snowball.schedule, '#b3261e', false);
-    line(cmp.avalanche.schedule, '#1e2a38', false);
+    line(cmp.baseline.schedule, '#cbd5e1', true, '2');
+    // the strategy you're following draws thicker
+    line(cmp.snowball.schedule, '#b3261e', false, chosen === 'snowball' ? '4.5' : '2');
+    line(cmp.avalanche.schedule, '#1e2a38', false, chosen === 'avalanche' ? '4.5' : '2');
 
     function label(x, y, text, color) {
       var t = document.createElementNS(NS, 'text');
@@ -168,10 +251,10 @@
     label(lx, 60, '- - Minimums only', '#94a3b8');
   }
 
-  function renderScheduleTable(cmp) {
+  function renderScheduleTable(cmp, chosen) {
     var box = el('scheduleTable');
     box.innerHTML = '';
-    var res = cmp[cmp.winner];
+    var res = cmp[chosen];
     if (res.stalled || !res.monthly || res.monthly.length < 2) {
       box.innerHTML = '<p class="muted">No schedule to show yet — the current payments never pay the balance down.</p>';
       return;
@@ -190,8 +273,45 @@
     box.appendChild(table);
     var note = document.createElement('p');
     note.className = 'muted small';
-    note.textContent = 'Showing the ' + cmp.winner + ' plan (' + res.months + ' payments).';
+    note.textContent = 'Showing the ' + chosen + ' plan (' + res.months + ' payments).';
     box.appendChild(note);
+  }
+
+  function runLumpCalc() {
+    var out = el('lumpResult');
+    var debts = loadDebts();
+    var amt = parseFloat(el('lumpAmt').value);
+    var month = parseInt(el('lumpMonth').value, 10);
+    if (!debts.length) { out.innerHTML = '<p class="error">Add a debt first.</p>'; return; }
+    if (!(amt > 0) || !(month >= 1)) {
+      out.innerHTML = '<p class="error">Enter an amount above $0 and a month number of 1 or more.</p>';
+      return;
+    }
+    var extra = loadExtra();
+    var chosen = loadStrategy() || D.compare(debts, extra).winner;
+    var base = D.simulate(debts, chosen, extra, new Date());
+    var lump = D.simulate(debts, chosen, extra, new Date(), [{ month: month, amount: amt }]);
+    var stratName = chosen === 'avalanche' ? 'Avalanche' : 'Snowball';
+    if (base.stalled && lump.stalled) {
+      out.innerHTML = '<p class="target-ok">Even with ' + D.money(amt) + ' in month ' + month +
+        ', the minimums don\'t cover the interest — raise the monthly extra payment too.</p>';
+      return;
+    }
+    if (base.stalled && !lump.stalled) {
+      out.innerHTML = '<p class="target-ok">That lump sum gets your plan unstuck — debt-free by <b>' +
+        D.fmtDate(lump.payoffDate) + '</b> (' + lump.months + ' months via ' + stratName + ').</p>';
+      return;
+    }
+    var monthsSaved = base.months - lump.months;
+    var interestSaved = Math.max(0, base.totalInterest - lump.totalInterest);
+    if (monthsSaved <= 0 && interestSaved <= 0.005) {
+      out.innerHTML = '<p class="muted">That lump lands after you\'re already debt-free — no change to the plan. Try an earlier month.</p>';
+      return;
+    }
+    out.innerHTML = '<p class="target-ok">Paying <b>' + D.money(amt) + '</b> in month ' + month + ' (' +
+      D.fmtDate(D.addMonths(new Date(), month)) + ') cuts <b>' + monthsSaved + ' month' +
+      (monthsSaved === 1 ? '' : 's') + '</b> off your plan and saves <b>' + D.money(interestSaved) +
+      '</b> in interest — debt-free by <b>' + D.fmtDate(lump.payoffDate) + '</b> via ' + stratName + '.</p>';
   }
 
   function runTargetCalc() {
@@ -209,10 +329,11 @@
         D.fmtDate(r.payoffDate) + '</b> — ' + r.months + ' months via ' + stratName + '.</p>';
   }
 
-  function renderProgress(cmp) {
+  function renderProgress(cmp, chosen) {
     var box = el('progressList');
     box.innerHTML = '';
-    var res = cmp[cmp.winner];
+    var res = cmp[chosen];
+    var checkins = loadCheckins();
     var startTotal = res.schedule[0].balance || 1;
     res.perDebt.forEach(function (pd) {
       // current remaining fraction: derive from payoff order is complex;
@@ -223,8 +344,16 @@
       div.innerHTML = '<div class="prog-top"><strong></strong><span></span></div>' +
         '<div class="prog-bar"><div class="prog-fill"></div></div>';
       div.querySelector('strong').textContent = pd.name;
-      div.querySelector('.prog-top span').textContent =
-        D.money(pd.startBalance) + ' → paid off ' + when;
+      var sub = D.money(pd.startBalance) + ' → paid off ' + when;
+      // real-world progress from balance check-ins, when the user logs them
+      var hist = (checkins[pd.id] || []).slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; });
+      if (hist.length >= 1 && hist[0].balance > 0) {
+        var first = hist[0], last = hist[hist.length - 1];
+        var paid = Math.max(0, first.balance - last.balance);
+        var pct = Math.min(100, Math.round(paid / first.balance * 100));
+        sub += ' · checked in ' + D.money(last.balance) + ' — ' + D.money(paid) + ' paid down (' + pct + '%) since ' + first.date;
+      }
+      div.querySelector('.prog-top span').textContent = sub;
       // fill = share of time elapsed is unknown pre-payoff; show planned share instead
       var frac = res.months > 0 && pd.payoffMonth != null
         ? Math.min(1, pd.payoffMonth / res.months) : 0;
@@ -233,8 +362,8 @@
     });
   }
 
-  function motivational(cmp, extra) {
-    var best = cmp[cmp.winner];
+  function motivational(cmp, chosen, extra) {
+    var best = cmp[chosen];
     var msgs = [];
     if (best.stalled) {
       return 'Your minimums don\'t cover the interest right now — every month the balance grows. ' +
@@ -248,7 +377,12 @@
     var diff = Math.abs(cmp.avalanche.totalInterest - cmp.snowball.totalInterest);
     if (diff > 1) {
       var w = cmp.winner === 'avalanche' ? 'Avalanche' : 'Snowball';
-      msgs.push(w + ' wins this round, saving ' + D.money(diff) + ' in interest over the other strategy.');
+      if (chosen === cmp.winner) {
+        msgs.push(w + ' wins this round, saving ' + D.money(diff) + ' in interest over the other strategy.');
+      } else {
+        msgs.push('You\'re following the ' + (chosen === 'snowball' ? 'Snowball' : 'Avalanche') + ' even though ' + w +
+          ' is ' + D.money(diff) + ' cheaper — the plan you stick with beats the cheapest one you abandon.');
+      }
     } else {
       msgs.push('Both strategies cost nearly the same here — pick the one that keeps you motivated.');
     }
@@ -286,19 +420,26 @@
     results.style.display = '';
 
     var cmp = D.compare(debts, extra);
+    var chosen = loadStrategy() || cmp.winner;
     var showdown = el('showdown');
     showdown.innerHTML = '';
     showdown.appendChild(strategyCard(
-      'Snowball', 'Pay smallest balance first. Quick wins keep motivation high.',
-      cmp.snowball, cmp.winner === 'snowball'));
+      'snowball', 'Snowball', 'Pay smallest balance first. Quick wins keep motivation high.',
+      cmp.snowball, cmp.winner === 'snowball', chosen === 'snowball'));
     showdown.appendChild(strategyCard(
-      'Avalanche', 'Pay highest APR first. Mathematically the cheapest route.',
-      cmp.avalanche, cmp.winner === 'avalanche'));
+      'avalanche', 'Avalanche', 'Pay highest APR first. Mathematically the cheapest route.',
+      cmp.avalanche, cmp.winner === 'avalanche', chosen === 'avalanche'));
+    showdown.querySelectorAll('.follow-btn').forEach(function (b) {
+      b.addEventListener('click', function () {
+        saveStrategy(b.getAttribute('data-strategy'));
+        render();
+      });
+    });
 
-    drawChart(cmp);
-    renderProgress(cmp);
-    renderScheduleTable(cmp);
-    el('motivation').textContent = motivational(cmp, extra);
+    drawChart(cmp, chosen);
+    renderProgress(cmp, chosen);
+    renderScheduleTable(cmp, chosen);
+    el('motivation').textContent = motivational(cmp, chosen, extra);
   }
 
   function addDebtFromForm() {
@@ -346,6 +487,9 @@
     });
     el('targetCalc').addEventListener('click', runTargetCalc);
     el('targetDate').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); runTargetCalc(); } });
+    el('lumpCalc').addEventListener('click', runLumpCalc);
+    el('lumpAmt').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); runLumpCalc(); } });
+    el('lumpMonth').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); runLumpCalc(); } });
     el('schedCsv').addEventListener('click', function () {
       var debts = loadDebts();
       if (!debts.length) return;

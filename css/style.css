@@ -229,6 +229,13 @@ input[type="range"].slider:focus-visible { box-shadow: var(--ring); }
 }
 .debt-edit-grid .error { grid-column: 1 / -1; }
 .btn-mini { padding: 8px 14px; font-size: 13px; }
+.debt-checkin-grid {
+  display: grid; grid-template-columns: 1.2fr 1fr 1fr auto auto;
+  gap: 10px; align-items: center; width: 100%;
+}
+.chk-label { font-size: 14px; color: var(--muted); }
+.follow-btn { margin-top: 14px; }
+.strat-card .follow-btn[disabled] { opacity: .85; cursor: default; }
 
 .target-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 .target-row input { max-width: 220px; }

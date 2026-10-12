@@ -46,6 +46,17 @@
 
   <div id="results">
     <section class="card">
+      <h2>One-time lump sum</h2>
+      <p class="muted">Bonus, tax refund, or side-gig cash coming? See exactly what one extra payment does to your plan.</p>
+      <div class="target-row">
+        <input id="lumpAmt" type="number" min="0" step="25" placeholder="Amount ($)" aria-label="Lump sum amount">
+        <input id="lumpMonth" type="number" min="1" max="600" step="1" placeholder="In month # (1 = next month)" aria-label="Lump sum month">
+        <button id="lumpCalc" class="btn primary">What would it do?</button>
+      </div>
+      <div id="lumpResult" style="margin-top:12px"></div>
+    </section>
+
+    <section class="card">
       <h2>Extra payment attack <span id="extraVal" class="pill">$150.00/mo</span></h2>
       <p class="muted">Every dollar above the minimums goes straight at one target debt — and when a debt dies, its minimum rolls into the attack too.</p>
       <input id="extraRange" type="range" min="0" max="1000" step="25" value="150" class="slider">
