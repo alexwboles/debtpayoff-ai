@@ -25,7 +25,8 @@
         name: String(d.name || ('Debt ' + (i + 1))),
         balance: Math.max(0, Number(d.balance) || 0),
         apr: Math.max(0, Number(d.apr) || 0),
-        min: Math.max(0, Number(d.min) || 0)
+        min: Math.max(0, Number(d.min) || 0),
+        deadline: d.deadline && parseISODate(d.deadline) ? d.deadline : ''
       };
     });
   }
@@ -53,6 +54,33 @@
 
   function fmtDate(d) {
     return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+  }
+
+  // Payment months from `start` until the deadline: month 1 lands one month
+  // after `start`, so a Mar 15 deadline with an Oct 13 start gives 5
+  // payments (Nov 13 … Mar 13). When the deadline day falls before the
+  // start day-of-month, that last payment would land late, so we pull the
+  // deadline one month earlier (never below "clear it now").
+  function monthsToDeadline(deadlineISO, start) {
+    var dl = parseISODate(deadlineISO);
+    if (!dl || !(start instanceof Date)) return 0;
+    var n = (dl.getFullYear() - start.getFullYear()) * 12 + (dl.getMonth() - start.getMonth());
+    if (dl.getDate() < start.getDate()) n -= 1;
+    return n;
+  }
+
+  // Amortizing payment that clears `balance` by the deadline: the Undebt.it+
+  // "pay off by a date" mechanic. monthIdx is the 1-based payment month
+  // being planned (the requirement shrinks as the balance falls and the
+  // deadline approaches). Returns 0 for no/invalid deadline.
+  function deadlinePayment(balance, apr, deadlineISO, start, monthIdx) {
+    var dl = parseISODate(deadlineISO);
+    if (!dl || !(balance > 0)) return 0;
+    var n = monthsToDeadline(deadlineISO, start) - ((monthIdx || 1) - 1);
+    if (n < 1) return round2(balance); // deadline is now or past: clear it
+    var r = Math.max(0, Number(apr) || 0) / 100 / 12;
+    if (r <= 0) return round2(balance / n);
+    return round2(balance * r / (1 - Math.pow(1 + r, -n)));
   }
 
   /**
@@ -112,14 +140,17 @@
                        .reduce(function (s, d) { return s + d.min; }, 0);
       var pool = extra + rollover;
 
-      // 3. pay minimums on every unpaid debt
+      // 3. pay minimums on every unpaid debt; deadline debts are guaranteed
+      // their amortizing "pay off by" amount — the top-up above the minimum
+      // is extra spending the plan reports as the deadline commitment.
       ds.forEach(function (d) {
-        if (d.balance > 0.005 && d.min > 0) {
-          var p = Math.min(d.min, d.balance);
-          d.balance -= p;
-          totalPaid += p;
-          monthPayment += p;
-        }
+        if (!(d.balance > 0.005)) return;
+        var payMin = d.min > 0 ? Math.min(d.min, d.balance) : 0;
+        var req = d.deadline ? deadlinePayment(d.balance, d.apr, d.deadline, start, month) : 0;
+        var payTotal = Math.min(d.balance, Math.max(payMin, req));
+        d.balance -= payTotal;
+        totalPaid += payTotal;
+        monthPayment += payTotal;
       });
 
       // 4. attack the strategy's target debt with the pool
@@ -178,6 +209,38 @@
       monthly: monthly,
       perDebt: perDebt,
       stalled: stalled
+    };
+  }
+
+  // Month-one battle plan: the concrete "pay this much to each debt" for the
+  // first month of a strategy. Deadline debts get their guaranteed payment;
+  // the attack target gets minimums + the full extra pool.
+  // Returns { target, rows: [{id,name,payment,isTarget,deadline,min,deadlineTop}], total, strategy }.
+  function firstMonthPlan(debts, strategy, extraMonthly, fromDate) {
+    var start = fromDate instanceof Date ? new Date(fromDate.getTime()) : new Date();
+    var ds = cloneDebts(debts).filter(function (d) { return d.balance > 0; });
+    var strat = strategy === 'snowball' ? 'snowball' : 'avalanche';
+    var target = payoffOrder(ds, strat)[0] || null;
+    var extra = Math.max(0, Number(extraMonthly) || 0);
+    var rows = ds.map(function (d) {
+      var req = d.deadline ? deadlinePayment(d.balance, d.apr, d.deadline, start, 1) : 0;
+      var base = Math.max(d.min, req);
+      var isTarget = !!(target && String(target.id) === String(d.id));
+      return {
+        id: d.id, name: d.name,
+        payment: round2(base + (isTarget ? extra : 0)),
+        isTarget: isTarget,
+        deadline: d.deadline || '',
+        min: round2(d.min),
+        deadlineTop: round2(Math.max(0, req - d.min))
+      };
+    });
+    rows.sort(function (a, b) { return b.payment - a.payment; });
+    return {
+      target: target ? { id: target.id, name: target.name } : null,
+      rows: rows,
+      total: round2(rows.reduce(function (s, r) { return s + r.payment; }, 0)),
+      strategy: strat
     };
   }
 
@@ -383,6 +446,9 @@
     refinanceImpact: refinanceImpact,
     minShortfalls: minShortfalls,
     debtsFromCSV: debtsFromCSV,
+    monthsToDeadline: monthsToDeadline,
+    deadlinePayment: deadlinePayment,
+    firstMonthPlan: firstMonthPlan,
     MAX_MONTHS: MAX_MONTHS
   };
 }));

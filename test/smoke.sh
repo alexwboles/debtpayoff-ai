@@ -120,6 +120,48 @@ const refi = D.refinanceImpact(rdebts, 300, 'c1', 12, new Date(2026, 0, 1));
 (!D.refinanceImpact(rdebts, 300, 'c1', 29, new Date(2026, 0, 1)).ok && !D.refinanceImpact(rdebts, 300, 'nope', 5, new Date(2026, 0, 1)).ok)
   ? ok('refinanceImpact: higher APR + unknown debt rejected') : bad('refinanceImpact error paths');
 
+// monthsToDeadline: payment-month counting (Mar 15 from Oct 13 = 5 payments)
+(D.monthsToDeadline('2027-03-15', new Date(2026, 9, 13)) === 5)
+  ? ok('monthsToDeadline: Oct 13 -> Mar 15 = 5 payment months') : bad('monthsToDeadline: ' + D.monthsToDeadline('2027-03-15', new Date(2026, 9, 13)));
+(D.monthsToDeadline('2026-11-05', new Date(2026, 9, 20)) === 0)
+  ? ok('monthsToDeadline: deadline day before start day -> 0 (clear now)') : bad('monthsToDeadline day edge');
+(D.monthsToDeadline('not-a-date', new Date(2026, 9, 13)) === 0)
+  ? ok('monthsToDeadline: invalid -> 0') : bad('monthsToDeadline invalid');
+
+// deadlinePayment: amortizing math ($2400 at 0% over 5 months = $480)
+(D.deadlinePayment(2400, 0, '2027-03-15', new Date(2026, 9, 13), 1) === 480)
+  ? ok('deadlinePayment: $2400 at 0% / 5 mo = $480') : bad('deadlinePayment: ' + D.deadlinePayment(2400, 0, '2027-03-15', new Date(2026, 9, 13), 1));
+(Math.abs(D.deadlinePayment(1000, 12, '2027-03-15', new Date(2026, 9, 13), 1) - 206.04) < 0.05)
+  ? ok('deadlinePayment: $1000 at 12% / 5 mo ~ $206.04') : bad('deadlinePayment APR math');
+(D.deadlinePayment(1000, 12, '', new Date(2026, 9, 13), 1) === 0)
+  ? ok('deadlinePayment: no deadline -> 0') : bad('deadlinePayment empty');
+
+// simulate honors a per-debt deadline: promo cleared by month 5
+const dlDebts = [
+  { id: 'a', name: 'Promo', balance: 2400, apr: 0, min: 50, deadline: '2027-03-15' },
+  { id: 'b', name: 'Card', balance: 3000, apr: 24, min: 75 }
+];
+const dlSim = D.simulate(dlDebts, 'avalanche', 200, new Date(2026, 9, 13));
+const dlPromo = dlSim.perDebt.find(function (d) { return d.id === 'a'; });
+(dlPromo && dlPromo.payoffMonth <= 5 && !dlSim.stalled)
+  ? ok('simulate: deadline debt cleared in month ' + dlPromo.payoffMonth + ' (deadline month 5)') : bad('deadline not honored: ' + JSON.stringify(dlPromo));
+// deadline top-up is extra spending, not taken from the attack pool
+const noDl = D.simulate(dlDebts.map(function (d) { var c = {}; for (var k in d) c[k] = d[k]; c.deadline = ''; return c; }), 'avalanche', 200, new Date(2026, 9, 13));
+(dlSim.monthly[1].payment > noDl.monthly[1].payment)
+  ? ok('simulate: deadline month-1 payment ' + D.money(dlSim.monthly[1].payment) + ' > no-deadline ' + D.money(noDl.monthly[1].payment)) : bad('deadline top-up missing');
+// cloneDebts carries valid deadlines, drops invalid ones
+const cl = D.cloneDebts([{ name: 'X', balance: 1, deadline: '2027-01-01' }, { name: 'Y', balance: 1, deadline: 'junk' }]);
+(cl[0].deadline === '2027-01-01' && cl[1].deadline === '')
+  ? ok('cloneDebts: keeps valid deadline, drops invalid') : bad('cloneDebts deadline');
+
+// firstMonthPlan: concrete month-one payments with deadline + attack target
+const bmp = D.firstMonthPlan(dlDebts, 'avalanche', 200, new Date(2026, 9, 13));
+const bPromo = bmp.rows.find(function (r) { return r.id === 'a'; });
+const bCard = bmp.rows.find(function (r) { return r.id === 'b'; });
+(bmp.target && bmp.target.id === 'b' && bPromo.payment === 480 && bPromo.deadlineTop === 430 &&
+  bCard.isTarget && bCard.payment === 275 && Math.abs(bmp.total - 755) < 0.01)
+  ? ok('firstMonthPlan: promo $480 (min $50 + $430 deadline), card $275 attack, total $755') : bad('firstMonthPlan: ' + JSON.stringify(bmp.rows));
+
 console.log('---');
 console.log('NODE PASS: ' + pass + '  FAIL: ' + fail);
 process.exit(fail ? 1 : 0);
@@ -127,9 +169,14 @@ NODEEOF
 [ $? -eq 0 ] && ok "node logic checks green" || bad "node logic checks had failures"
 
 # new UI hooks in index.html
-for id in targetDate targetCalc targetResult scheduleTable schedCsv printPlan refiDebt refiApr refiCalc refiResult debtCsv debtCsvMsg minWarn; do
+for id in targetDate targetCalc targetResult scheduleTable schedCsv printPlan refiDebt refiApr refiCalc refiResult debtCsv debtCsvMsg minWarn battlePlan; do
   grep -q "id=\"$id\"" index.html && ok "index.html has #$id" || bad "index.html missing #$id"
 done
+# deadline + battle-plan + chart hooks in app.js/css
+for hook in eDeadline deadline-badge renderBattlePlan firstMonthPlan chart-milestone chart-area chart-grid; do
+  grep -q "$hook" js/app.js css/style.css index.html && ok "deadline/chart hook present: $hook" || bad "missing hook: $hook"
+done
+[ -f REDESIGN-AUDIT.md ] && ok "REDESIGN-AUDIT.md present" || bad "REDESIGN-AUDIT.md missing"
 
 echo "---"
 echo "SMOKE PASS: $PASS  FAIL: $FAIL"

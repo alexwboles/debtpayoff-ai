@@ -79,8 +79,17 @@
       '<button class="icon-btn" title="Remove" aria-label="Remove debt">' +
       '<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M2 2l10 10M12 2L2 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>';
     li.querySelector('strong').textContent = d.name;
-    li.querySelector('.debt-meta').textContent =
-      D.money(d.balance) + ' @ ' + d.apr + '% APR · min ' + D.money(d.min) + '/mo';
+    var meta = D.money(d.balance) + ' @ ' + d.apr + '% APR · min ' + D.money(d.min) + '/mo';
+    li.querySelector('.debt-meta').textContent = meta;
+    if (d.deadline) {
+      var badge = document.createElement('span');
+      badge.className = 'deadline-badge';
+      var dlDate = D.parseISODate(d.deadline);
+      var req = D.deadlinePayment(d.balance, d.apr, d.deadline, new Date(), 1);
+      badge.textContent = 'due ' + (dlDate ? D.fmtDate(dlDate) : d.deadline) + ' → ' + D.money(req) + '/mo';
+      badge.title = 'Guaranteed pay-off date: the plan pays ' + D.money(req) + '/mo to clear this debt on time.';
+      li.querySelector('.debt-info').appendChild(badge);
+    }
     li.querySelector('.checkin-btn').addEventListener('click', function () {
       checkinId = d.id;
       render();
@@ -106,6 +115,7 @@
       '<input type="number" id="eBalance" min="0" step="0.01" aria-label="Balance">' +
       '<input type="number" id="eApr" min="0" step="0.01" aria-label="APR">' +
       '<input type="number" id="eMin" min="0" step="0.01" aria-label="Minimum payment">' +
+      '<input type="date" id="eDeadline" aria-label="Pay off by (optional)" title="Pay off by (optional)">' +
       '<button class="btn primary btn-mini" id="eSave">Save</button>' +
       '<button class="btn ghost btn-mini" id="eCancel">Cancel</button></div>' +
       '<p class="error" id="eError"></p>';
@@ -113,18 +123,24 @@
     li.querySelector('#eBalance').value = d.balance;
     li.querySelector('#eApr').value = d.apr;
     li.querySelector('#eMin').value = d.min;
+    li.querySelector('#eDeadline').value = d.deadline || '';
     li.querySelector('#eSave').addEventListener('click', function () {
       var name = li.querySelector('#eName').value.trim();
       var balance = parseFloat(li.querySelector('#eBalance').value);
       var apr = parseFloat(li.querySelector('#eApr').value);
       var min = parseFloat(li.querySelector('#eMin').value);
+      var deadline = li.querySelector('#eDeadline').value;
       if (!name || !(balance > 0)) {
         li.querySelector('#eError').textContent = 'Name and a balance above $0 are required.';
         return;
       }
+      if (deadline && !D.parseISODate(deadline)) {
+        li.querySelector('#eError').textContent = 'That pay-off-by date is not valid.';
+        return;
+      }
       var debts = loadDebts().map(function (x) {
         if (x.id !== d.id) return x;
-        return { id: x.id, name: name, balance: balance, apr: isNaN(apr) ? 0 : apr, min: isNaN(min) ? 0 : min };
+        return { id: x.id, name: name, balance: balance, apr: isNaN(apr) ? 0 : apr, min: isNaN(min) ? 0 : min, deadline: deadline || '' };
       });
       saveDebts(debts);
       editingId = null;
@@ -220,55 +236,86 @@
   function drawChart(cmp, chosen) {
     var svg = el('chart');
     while (svg.firstChild) svg.removeChild(svg.firstChild);
-    var W = 640, H = 260, PAD = 40;
-    svg.setAttribute('viewBox', '0 0 ' + W + H);
+    var W = 680, H = 300, PADL = 52, PADR = 14, PADT = 16, PADB = 44;
+    svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
     var NS = 'http://www.w3.org/2000/svg';
     var maxBal = Math.max(
       cmp.avalanche.schedule[0].balance,
       cmp.snowball.schedule[0].balance, 1);
     var maxM = Math.max(cmp.avalanche.months, cmp.snowball.months, 1);
+    var cw = W - PADL - PADR, ch = H - PADT - PADB;
 
     function pt(m, b) {
-      var x = PAD + (m / maxM) * (W - PAD - 10);
-      var y = H - PAD - (b / maxBal) * (H - PAD - 20);
-      return x.toFixed(1) + ',' + y.toFixed(1);
+      var x = PADL + (m / maxM) * cw;
+      var y = PADT + ch - (b / maxBal) * ch;
+      return { x: x, y: y };
     }
-    function line(sched, color, dashed, width) {
-      var pl = document.createElementNS(NS, 'polyline');
-      pl.setAttribute('points', sched.map(function (p) { return pt(p.month, p.balance); }).join(' '));
-      pl.setAttribute('fill', 'none');
-      pl.setAttribute('stroke', color);
-      pl.setAttribute('stroke-width', width || '3');
-      if (dashed) pl.setAttribute('stroke-dasharray', '7,5');
-      pl.setAttribute('stroke-linejoin', 'round');
-      svg.appendChild(pl);
+    function mk(tag, attrs) {
+      var n = document.createElementNS(NS, tag);
+      for (var k in attrs) n.setAttribute(k, attrs[k]);
+      svg.appendChild(n);
+      return n;
     }
-    // axes
-    var ax = document.createElementNS(NS, 'line');
-    ax.setAttribute('x1', PAD); ax.setAttribute('y1', H - PAD);
-    ax.setAttribute('x2', W - 10); ax.setAttribute('y2', H - PAD);
-    ax.setAttribute('stroke', '#cbd5e1'); svg.appendChild(ax);
-    var ay = document.createElementNS(NS, 'line');
-    ay.setAttribute('x1', PAD); ay.setAttribute('y1', 10);
-    ay.setAttribute('x2', PAD); ay.setAttribute('y2', H - PAD);
-    ay.setAttribute('stroke', '#cbd5e1'); svg.appendChild(ay);
-
-    line(cmp.baseline.schedule, '#cbd5e1', true, '2');
-    // the strategy you're following draws thicker
-    line(cmp.snowball.schedule, '#b3261e', false, chosen === 'snowball' ? '4.5' : '2');
-    line(cmp.avalanche.schedule, '#1e2a38', false, chosen === 'avalanche' ? '4.5' : '2');
-
-    function label(x, y, text, color) {
-      var t = document.createElementNS(NS, 'text');
-      t.setAttribute('x', x); t.setAttribute('y', y);
-      t.setAttribute('fill', color); t.setAttribute('font-size', '12');
-      t.textContent = text; svg.appendChild(t);
+    function txt(x, y, s, cls, anchor) {
+      var t = mk('text', { x: x, y: y, 'class': cls || 'chart-axis' });
+      if (anchor) t.setAttribute('text-anchor', anchor);
+      t.textContent = s;
+      return t;
     }
-    label(PAD, H - 12, 'Debt-free →', '#64748b');
-    var lx = W - 150;
-    label(lx, 24, '— Avalanche', '#1e2a38');
-    label(lx, 42, '— Snowball', '#b3261e');
-    label(lx, 60, '- - Minimums only', '#94a3b8');
+    // gridlines + $k axis
+    [0.25, 0.5, 0.75, 1].forEach(function (f) {
+      var v = Math.round(maxBal * f / 500) * 500;
+      var p = pt(0, v);
+      mk('line', { x1: PADL, y1: p.y, x2: W - PADR, y2: p.y, 'class': 'chart-grid' });
+      txt(PADL - 8, p.y + 4, v >= 1000 ? '$' + (v / 1000) + 'k' : '$' + v, 'chart-axis', 'end');
+    });
+    // month labels
+    var step = maxM > 24 ? 6 : maxM > 12 ? 3 : 2;
+    for (var m = 0; m <= maxM; m += step) {
+      var p2 = pt(m, 0);
+      txt(p2.x, H - PADB + 18, 'mo ' + m, 'chart-axis', 'middle');
+    }
+    txt(PADL, H - 8, 'months →', 'chart-axis');
+    // baseline (minimums only)
+    function line(sched, cls, width, dash) {
+      var pl = mk('polyline', {
+        points: sched.map(function (p) { var q = pt(p.month, p.balance); return q.x.toFixed(1) + ',' + q.y.toFixed(1); }).join(' '),
+        fill: 'none', 'class': cls, 'stroke-width': width || '2.5'
+      });
+      if (dash) pl.setAttribute('stroke-dasharray', dash);
+      return pl;
+    }
+    line(cmp.baseline.schedule, 'chart-baseline', '2', '6,5');
+    // area fill under the followed strategy
+    var res = cmp[chosen];
+    var areaPts = res.schedule.map(function (p) { var q = pt(p.month, p.balance); return q.x.toFixed(1) + ',' + q.y.toFixed(1); });
+    var pStart = pt(0, 0), pEnd = pt(maxM, 0);
+    mk('polygon', { points: areaPts.join(' ') + ' ' + pEnd.x.toFixed(1) + ',' + pEnd.y.toFixed(1) + ' ' + pStart.x.toFixed(1) + ',' + pStart.y.toFixed(1), 'class': 'chart-area' });
+    var other = chosen === 'snowball' ? 'avalanche' : 'snowball';
+    line(cmp[other].schedule, 'chart-' + other, '2');
+    line(res.schedule, 'chart-' + chosen + ' chart-chosen', '4');
+    // zero axis
+    var z = pt(0, 0);
+    mk('line', { x1: PADL, y1: z.y, x2: W - PADR, y2: z.y, 'class': 'chart-zero' });
+    // "you are here" start marker
+    var s0 = pt(0, res.schedule[0].balance);
+    mk('circle', { cx: s0.x, cy: s0.y, r: 5, 'class': 'chart-start' });
+    txt(s0.x + 10, s0.y + 4, 'you are here', 'chart-note');
+    // payoff milestones: each debt's death month on the followed plan
+    (res.perDebt || []).forEach(function (pd) {
+      if (pd.payoffMonth == null || pd.payoffMonth > maxM) return;
+      var q = pt(pd.payoffMonth, 0);
+      var c = mk('circle', { cx: q.x, cy: q.y, r: 5, 'class': 'chart-milestone' });
+      var title = document.createElementNS(NS, 'title');
+      title.textContent = pd.name + ' paid off — ' + D.fmtDate(D.addMonths(new Date(), pd.payoffMonth));
+      c.appendChild(title);
+    });
+    // legend
+    var lx = W - 172;
+    txt(lx, 22, '— Avalanche', 'chart-legend chart-avalanche');
+    txt(lx, 40, '— Snowball', 'chart-legend chart-snowball');
+    txt(lx, 58, '- - Minimums only', 'chart-legend chart-baseline');
+    txt(lx, 76, '● debt paid off', 'chart-legend');
   }
 
   function renderScheduleTable(cmp, chosen) {
@@ -437,6 +484,33 @@
     return msgs.join(' ');
   }
 
+  function renderBattlePlan(debts, chosen, extra) {
+    var box = el('battlePlan');
+    var plan = D.firstMonthPlan(debts, chosen, extra, new Date());
+    if (!plan.rows.length) { box.innerHTML = '<p class="muted">Add a debt to see your battle plan.</p>'; return; }
+    var stratName = plan.strategy === 'snowball' ? 'Snowball' : 'Avalanche';
+    var html = '<div class="battle-target">Attack target: <strong>' + escHtml(plan.target ? plan.target.name : '—') +
+      '</strong> <span class="muted">(' + stratName + ' order)</span></div>';
+    html += '<div class="battle-rows">' + plan.rows.map(function (r) {
+      var tags = [];
+      if (r.isTarget) tags.push('<span class="tag attack">attack</span>');
+      if (r.deadline) tags.push('<span class="tag deadline">due ' + escHtml(D.fmtDate(D.parseISODate(r.deadline))) + '</span>');
+      return '<div class="battle-row' + (r.isTarget ? ' is-target' : '') + '"><span class="battle-name">' +
+        escHtml(r.name) + ' ' + tags.join(' ') + '<br><span class="muted small">' +
+        (r.deadlineTop > 0
+          ? 'min ' + D.money(r.min) + ' + ' + D.money(r.deadlineTop) + ' deadline guarantee'
+          : r.isTarget ? 'min ' + D.money(r.min) + ' + ' + D.money(extra) + ' attack' : 'minimum') +
+        '</span></span><span class="battle-pay">' + D.money(r.payment) + '</span></div>';
+    }).join('') + '</div>';
+    html += '<div class="battle-total"><span>Total this month</span><strong>' + D.money(plan.total) + '</strong></div>';
+    var dlExtra = plan.rows.reduce(function (s, r) { return s + r.deadlineTop; }, 0);
+    if (dlExtra > 0) {
+      html += '<p class="muted small">Includes ' + D.money(Math.round(dlExtra * 100) / 100) +
+        '/mo in deadline guarantees — the price of those pay-off-by dates.</p>';
+    }
+    box.innerHTML = html;
+  }
+
   function render() {
     var debts = loadDebts();
     var extra = loadExtra();
@@ -492,6 +566,7 @@
     });
 
     drawChart(cmp, chosen);
+    renderBattlePlan(debts, chosen, extra);
     renderProgress(cmp, chosen);
     renderScheduleTable(cmp, chosen);
     el('motivation').textContent = motivational(cmp, chosen, extra);

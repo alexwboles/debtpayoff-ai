@@ -125,6 +125,50 @@ h2 { font-size: 20px; margin: 0 0 4px; letter-spacing: -0.015em; }
 .debt-row::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--crimson); }
 .debt-row:hover { border-color: #d8d2c2; transform: translateY(-1px); }
 .debt-info { display: flex; flex-direction: column; gap: 2px; }
+.deadline-badge {
+  display: inline-block; align-self: flex-start; font-size: 12px; font-weight: 700;
+  color: #7a2c12; background: #fdf0e2; border: 1px solid #f0d3a8; border-radius: 0;
+  padding: 3px 10px; letter-spacing: .02em; margin-top: 4px;
+}
+.battle { border-top: 4px solid #b3261e; }
+.battle-target { font-size: 16px; margin-bottom: 12px; }
+.battle-rows { display: grid; gap: 8px; margin-bottom: 12px; }
+.battle-row {
+  display: flex; justify-content: space-between; align-items: center; gap: 14px;
+  padding: 10px 14px; border: 1px solid var(--border); background: #fff;
+}
+.battle-row.is-target { border-left: 5px solid #b3261e; background: #fffafa; }
+.battle-name { font-weight: 600; font-size: 14.5px; }
+.battle-pay { font-weight: 800; font-size: 17px; font-variant-numeric: tabular-nums; }
+.battle-total {
+  display: flex; justify-content: space-between; align-items: baseline;
+  padding: 12px 14px; background: #1e2a38; color: #f3efe2; font-size: 15px;
+}
+.battle-total strong { font-size: 22px; font-variant-numeric: tabular-nums; }
+.tag {
+  display: inline-block; font-size: 11px; font-weight: 800; text-transform: uppercase;
+  letter-spacing: .08em; padding: 2px 8px; border-radius: 0; vertical-align: 2px; margin-left: 6px;
+}
+.tag.attack { background: #b3261e; color: #fff; }
+.tag.deadline { background: #fdf0e2; color: #7a2c12; border: 1px solid #f0d3a8; }
+
+/* ---------- chart ---------- */
+#chart { width: 100%; height: auto; display: block; }
+.chart-grid { stroke: #e5e0d2; stroke-width: 1; }
+.chart-zero { stroke: #94a3b8; stroke-width: 1.4; }
+.chart-axis { fill: #8b8a7d; font-size: 11px; font-family: "Avenir Next", -apple-system, "Segoe UI", sans-serif; }
+.chart-note { fill: #8b8a7d; font-size: 11px; font-style: italic; }
+.chart-legend { fill: #5b6b7a; font-size: 12px; font-weight: 600; }
+.chart-avalanche { stroke: #1e2a38; }
+.chart-snowball { stroke: #b3261e; }
+.chart-baseline { stroke: #94a3b8; }
+.chart-legend.chart-avalanche { fill: #1e2a38; }
+.chart-legend.chart-snowball { fill: #b3261e; }
+.chart-legend.chart-baseline { fill: #94a3b8; }
+.chart-chosen { stroke-linejoin: round; stroke-linecap: round; }
+.chart-area { fill: rgba(178, 38, 30, .06); stroke: none; }
+.chart-start { fill: #1e2a38; stroke: #fff; stroke-width: 2; }
+.chart-milestone { fill: #1e7e46; stroke: #fff; stroke-width: 2; }
 .debt-info strong { font-size: 16px; }
 .debt-meta { font-size: 13.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .icon-btn {
@@ -235,7 +279,7 @@ input[type="range"].slider:focus-visible { box-shadow: var(--ring); }
 .debt-actions { display: flex; gap: 6px; flex: none; }
 .debt-row.editing { background: var(--paper); }
 .debt-edit-grid {
-  display: grid; grid-template-columns: 1.6fr 1fr 1fr 1fr auto auto;
+  display: grid; grid-template-columns: 1.6fr 1fr 1fr 1fr 1fr auto auto;
   gap: 10px; align-items: center; width: 100%;
 }
 .debt-edit-grid .error { grid-column: 1 / -1; }
