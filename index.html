@@ -40,6 +40,12 @@
       <button id="addDebt" class="btn primary" type="submit">Add debt</button>
     </form>
     <p id="formError" class="error"></p>
+    <div class="import-row">
+      <label class="muted small" for="debtCsv">Or import from CSV (header: <code>name,balance,apr,min</code>):</label>
+      <input type="file" id="debtCsv" accept=".csv,text/csv">
+      <span id="debtCsvMsg"></span>
+    </div>
+    <div id="minWarn" class="warn-banner" style="display:none"></div>
     <ul id="debtList" class="debt-list"></ul>
     <p class="total-line">Total owed: <strong id="totalOwed">$0.00</strong></p>
   </section>
@@ -54,6 +60,17 @@
         <button id="lumpCalc" class="btn primary">What would it do?</button>
       </div>
       <div id="lumpResult" style="margin-top:12px"></div>
+    </section>
+
+    <section class="card">
+      <h2>Refinance what-if</h2>
+      <p class="muted">Balance-transfer offer or a refi on the table? See exactly what a lower APR on one debt does to the whole plan.</p>
+      <div class="target-row">
+        <select id="refiDebt" aria-label="Debt to refinance"></select>
+        <input id="refiApr" type="number" min="0" step="0.1" placeholder="New APR (%)" aria-label="New APR">
+        <button id="refiCalc" class="btn primary">What would it save?</button>
+      </div>
+      <div id="refiResult" style="margin-top:12px"></div>
     </section>
 
     <section class="card">

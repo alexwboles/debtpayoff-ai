@@ -10,11 +10,12 @@ Minimum payments are designed to keep you in debt: on a $5,240 balance at 24.99%
 
 DebtPayoff AI runs **100% locally in your browser**:
 
-1. **Enter your debts** — balance, APR, minimum payment. Saved in your browser.
+1. **Enter your debts** — balance, APR, minimum payment. Saved in your browser, or import from a CSV (`name,balance,apr,min` header).
 2. **Set your attack payment** — the extra dollars above minimums, with a what-if slider ($0–$1,000/mo).
 3. **Strategy showdown** — ❄️ Snowball (smallest balance first, quick wins) vs. 🏔️ Avalanche (highest APR first, cheapest). Each card shows the debt-free date, months, total interest, and total paid, with the cheapest crowned.
 4. **Balance-over-time chart** — your projected balance under each strategy vs. minimums-only.
 5. **Payoff journey** — motivational summary (interest saved vs. minimums, first debt you'll kill) plus a per-debt payoff timeline.
+6. **What-if tools** — one-time lump sums, a debt-free-by-date reverse calculator, and a refinance simulator (what does a lower APR on one debt save?). Debts whose minimum doesn't cover the monthly interest get a warning banner.
 
 The simulator rolls freed-up minimums into the attack automatically (the real snowball/avalanche method), and warns you if your payments don't even cover the interest.
 

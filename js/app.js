@@ -43,6 +43,26 @@
 
   function el(id) { return document.getElementById(id); }
 
+  function escHtml(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  // Per-debt minimum-vs-interest warnings: flag debts whose minimum doesn't
+  // cover a month of interest (the balance grows while paying minimums).
+  function renderMinWarn(debts) {
+    var box = el('minWarn');
+    if (!box) return;
+    var flags = D.minShortfalls(debts);
+    if (!flags.length) { box.innerHTML = ''; box.style.display = 'none'; return; }
+    box.style.display = '';
+    box.innerHTML = '<strong>Heads up:</strong> ' + flags.map(function (f) {
+      return escHtml(f.name) + '\u2019s minimum (' + D.money(f.min) + ') doesn\u2019t cover its monthly interest (' +
+        D.money(f.monthlyInterest) + ') \u2014 the balance grows ' + D.money(f.shortfall) + '/mo on minimums alone';
+    }).join('; ') + '.';
+  }
+
   function debtRow(d) {
     if (editingId === d.id) return debtEditRow(d);
     if (checkinId === d.id) return debtCheckinRow(d);
@@ -314,6 +334,30 @@
       '</b> in interest — debt-free by <b>' + D.fmtDate(lump.payoffDate) + '</b> via ' + stratName + '.</p>';
   }
 
+  function runRefiCalc() {
+    var out = el('refiResult');
+    var debts = loadDebts();
+    if (!debts.length) { out.innerHTML = '<p class="error">Add a debt first.</p>'; return; }
+    var r = D.refinanceImpact(debts, loadExtra(), el('refiDebt').value, parseFloat(el('refiApr').value), new Date());
+    if (!r.ok) { out.innerHTML = '<p class="error">' + escHtml(r.error) + '</p>'; return; }
+    if (r.base.stalled && r.refi.stalled) {
+      out.innerHTML = '<p class="target-ok">Even at ' + r.newApr + '% APR the minimums don\u2019t cover the interest \u2014 raise the monthly extra payment too.</p>';
+      return;
+    }
+    if (r.base.stalled && !r.refi.stalled) {
+      out.innerHTML = '<p class="target-ok">That refinance gets your plan unstuck \u2014 debt-free by <b>' +
+        D.fmtDate(r.refi.payoffDate) + '</b> (' + r.refi.months + ' months).</p>';
+      return;
+    }
+    var saved = [];
+    if (r.interestSaved > 0.005) saved.push('saves <b>' + D.money(r.interestSaved) + '</b> in interest');
+    if (r.monthsSaved > 0) saved.push('cuts <b>' + r.monthsSaved + ' month' + (r.monthsSaved === 1 ? '' : 's') + '</b> off your plan');
+    out.innerHTML = saved.length
+      ? '<p class="target-ok">Refinancing <b>' + escHtml(r.debt) + '</b> from ' + r.oldApr + '% to <b>' + r.newApr +
+        '%</b> ' + saved.join(' and ') + ' \u2014 debt-free by <b>' + D.fmtDate(r.refi.payoffDate) + '</b>.</p>'
+      : '<p class="muted">No change \u2014 ' + escHtml(r.debt) + ' is paid off early enough that the rate cut barely matters.</p>';
+  }
+
   function runTargetCalc() {
     var out = el('targetResult');
     var debts = loadDebts();
@@ -407,6 +451,7 @@
     }
     el('debtCount').textContent = debts.length + (debts.length === 1 ? ' debt' : ' debts');
     el('totalOwed').textContent = D.money(debts.reduce(function (s, d) { return s + (Number(d.balance) || 0); }, 0));
+    renderMinWarn(debts);
 
     // extra slider
     el('extraRange').value = extra;
@@ -418,6 +463,16 @@
       return;
     }
     results.style.display = '';
+
+    // refinance picker follows the debt list
+    var rsel = el('refiDebt');
+    if (rsel) {
+      var cur = rsel.value;
+      rsel.innerHTML = debts.map(function (d) {
+        return '<option value="' + d.id + '">' + escHtml(d.name) + ' (' + d.apr + '% APR)</option>';
+      }).join('');
+      if (cur) rsel.value = cur;
+    }
 
     var cmp = D.compare(debts, extra);
     var chosen = loadStrategy() || cmp.winner;
@@ -490,6 +545,32 @@
     el('lumpCalc').addEventListener('click', runLumpCalc);
     el('lumpAmt').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); runLumpCalc(); } });
     el('lumpMonth').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); runLumpCalc(); } });
+    el('refiCalc').addEventListener('click', runRefiCalc);
+    el('refiApr').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); runRefiCalc(); } });
+    el('debtCsv').addEventListener('change', function (e) {
+      var f = e.target.files[0]; if (!f) return;
+      var rd = new FileReader();
+      rd.onload = function () {
+        var res = D.debtsFromCSV(rd.result);
+        var msg = el('debtCsvMsg');
+        if (res.debts.length) {
+          var debts = loadDebts();
+          var t = Date.now();
+          res.debts.forEach(function (d, i) {
+            debts.push({ id: 'd' + t + '-' + i, name: d.name, balance: d.balance, apr: d.apr, min: d.min });
+          });
+          saveDebts(debts);
+          render();
+          el('debtCsvMsg').innerHTML = '<span class="target-ok" style="margin:0">Imported ' + res.debts.length +
+            ' debt' + (res.debts.length === 1 ? '' : 's') +
+            (res.errors.length ? ' (' + res.errors.length + ' row' + (res.errors.length === 1 ? '' : 's') + ' skipped)' : '') + '.</span>';
+        } else {
+          msg.innerHTML = '<span class="error">No debts imported: ' + escHtml(res.errors.join('; ')) + '</span>';
+        }
+        e.target.value = '';
+      };
+      rd.readAsText(f);
+    });
     el('schedCsv').addEventListener('click', function () {
       var debts = loadDebts();
       if (!debts.length) return;

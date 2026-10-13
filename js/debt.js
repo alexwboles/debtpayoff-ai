@@ -256,6 +256,108 @@
     return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
   }
 
+  // Refinance what-if: what if one debt's APR dropped to newApr (balance
+  // transfer, refi, 0% promo)? Compares the current plan against the same
+  // plan with the cheaper rate. Returns { ok, debt, oldApr, newApr, base,
+  // refi, monthsSaved, interestSaved } or { ok:false, error }.
+  function refinanceImpact(debts, extraMonthly, debtId, newApr, fromDate) {
+    var list = cloneDebts(debts).filter(function (d) { return d.balance > 0; });
+    var target = null;
+    list.forEach(function (d) { if (String(d.id) === String(debtId)) target = d; });
+    if (!target) return { ok: false, error: 'Pick one of your debts.' };
+    newApr = Number(newApr);
+    if (!(newApr >= 0) || newApr >= target.apr) {
+      return { ok: false, error: 'Enter a new APR below the current ' + target.apr + '% to see the savings.' };
+    }
+    var start = fromDate instanceof Date ? new Date(fromDate.getTime()) : new Date();
+    var base = compare(list, extraMonthly, start);
+    var cheaper = list.map(function (d) {
+      return String(d.id) === String(debtId)
+        ? { id: d.id, name: d.name, balance: d.balance, apr: newApr, min: d.min }
+        : d;
+    });
+    var refi = compare(cheaper, extraMonthly, start);
+    var baseBest = base[base.winner], refiBest = refi[refi.winner];
+    return {
+      ok: true,
+      debt: target.name,
+      oldApr: target.apr,
+      newApr: newApr,
+      base: baseBest,
+      refi: refiBest,
+      monthsSaved: baseBest.stalled ? null : Math.max(0, baseBest.months - refiBest.months),
+      interestSaved: baseBest.stalled ? null : round2(Math.max(0, baseBest.totalInterest - refiBest.totalInterest))
+    };
+  }
+
+  // Debts whose minimum payment doesn't cover a month of interest: the
+  // balance grows even while paying. Returns [{ id, name, monthlyInterest,
+  // min, shortfall }] sorted by shortfall desc.
+  function minShortfalls(debts) {
+    var out = [];
+    cloneDebts(debts).forEach(function (d) {
+      if (!(d.balance > 0) || !(d.apr > 0)) return;
+      var mi = d.balance * (d.apr / 100) / 12;
+      if (d.min < mi) {
+        out.push({
+          id: d.id, name: d.name,
+          monthlyInterest: round2(mi), min: round2(d.min),
+          shortfall: round2(mi - d.min)
+        });
+      }
+    });
+    out.sort(function (a, b) { return b.shortfall - a.shortfall; });
+    return out;
+  }
+
+  // Debt CSV import: header name,balance,apr,min (case-insensitive; extra
+  // columns ignored). Returns { debts: [{name,balance,apr,min}], errors }.
+  function debtsFromCSV(text) {
+    var debts = [], errors = [];
+    var rows = String(text == null ? '' : text).replace(/^\uFEFF/, '').split(/\r?\n/);
+    var rows2 = rows.filter(function (r) { return r.trim() !== ''; });
+    if (!rows2.length) return { debts: debts, errors: ['empty file'] };
+    function splitRow(line) {
+      var out = [], cur = '', q = false;
+      for (var i = 0; i < line.length; i++) {
+        var c = line[i];
+        if (q) {
+          if (c === '"') { if (line[i + 1] === '"') { cur += '"'; i++; } else q = false; }
+          else cur += c;
+        } else if (c === '"') q = true;
+        else if (c === ',') { out.push(cur); cur = ''; }
+        else cur += c;
+      }
+      out.push(cur);
+      return out;
+    }
+    var head = splitRow(rows2[0]).map(function (h) { return h.trim().toLowerCase(); });
+    var ci = {
+      name: head.findIndex(function (h) { return /name|debt|creditor/.test(h); }),
+      balance: head.findIndex(function (h) { return /balance|owed|amount/.test(h); }),
+      apr: head.findIndex(function (h) { return /apr|rate|interest/.test(h); }),
+      min: head.findIndex(function (h) { return /min|minimum|payment/.test(h); })
+    };
+    if (ci.name < 0 || ci.balance < 0) {
+      return { debts: [], errors: ['header must include at least name and balance columns'] };
+    }
+    for (var r = 1; r < rows2.length; r++) {
+      var cells = splitRow(rows2[r]);
+      var name = (cells[ci.name] || '').trim();
+      var balance = parseFloat(cells[ci.balance]);
+      var apr = ci.apr >= 0 ? parseFloat(cells[ci.apr]) : 0;
+      var min = ci.min >= 0 ? parseFloat(cells[ci.min]) : 0;
+      if (!name || !(balance > 0)) { errors.push('row ' + (r + 1) + ': name and a balance above $0 are required'); continue; }
+      debts.push({
+        name: name,
+        balance: balance,
+        apr: isNaN(apr) || apr < 0 ? 0 : apr,
+        min: isNaN(min) || min < 0 ? 0 : min
+      });
+    }
+    return { debts: debts, errors: errors };
+  }
+
   // Month-by-month payoff schedule as CSV: Month, Date, Payment, Interest, Principal, Balance.
   function scheduleToCSV(sim) {
     var rows = [['Month', 'Date', 'Payment', 'Interest', 'Principal', 'Balance']];
@@ -278,6 +380,9 @@
     parseISODate: parseISODate,
     extraForTargetDate: extraForTargetDate,
     scheduleToCSV: scheduleToCSV,
+    refinanceImpact: refinanceImpact,
+    minShortfalls: minShortfalls,
+    debtsFromCSV: debtsFromCSV,
     MAX_MONTHS: MAX_MONTHS
   };
 }));

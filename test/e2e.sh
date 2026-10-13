@@ -111,6 +111,38 @@ const lastRow = csvRows[csvRows.length - 1].split(',');
 (D.parseISODate('2027-03-15') instanceof Date && D.parseISODate('2027-13-01') === null && D.parseISODate('15/03/2027') === null && D.parseISODate('') === null)
   ? ok('flow11: parseISODate accepts YYYY-MM-DD only') : bad('flow11: parseISODate');
 
+// Flow 12: refinance what-if on the sample's highest-APR debt (Store Card 29.99%)
+const pricey = debts.slice().sort((a, b) => b.apr - a.apr)[0];
+const refi = D.refinanceImpact(debts, 150, pricey.id, 9.99, start);
+(refi.ok && refi.debt === pricey.name && refi.oldApr === 29.99 && refi.interestSaved > 0)
+  ? ok('flow12: refinancing "' + pricey.name + '" 29.99%->9.99% saves ' + D.money(refi.interestSaved) + ' in interest') : bad('flow12: refi: ' + JSON.stringify({ ok: refi.ok, saved: refi.interestSaved }));
+const refiSame = D.refinanceImpact(debts, 150, pricey.id, 29.99, start);
+(!refiSame.ok) ? ok('flow12: same-or-higher APR rejected') : bad('flow12: no-op refi accepted');
+
+// Flow 13: minimum-vs-interest warnings — synthetic debt that can never shrink
+const ms = D.minShortfalls([
+  { id: 'x', name: 'Trap Card', balance: 10000, apr: 24, min: 50 },
+  { id: 'y', name: 'Healthy Loan', balance: 5000, apr: 6, min: 200 }
+]);
+(ms.length === 1 && ms[0].name === 'Trap Card' && Math.abs(ms[0].shortfall - 150) < 0.01 && ms[0].monthlyInterest === 200)
+  ? ok('flow13: "Trap Card" flagged ($50 min vs $200/mo interest, $150 shortfall); healthy loan clean') : bad('flow13: ' + JSON.stringify(ms));
+(D.minShortfalls(debts).length === 0)
+  ? ok('flow13: sample data has no minimum-coverage problems') : bad('flow13: sample debts flagged');
+
+// Flow 14: debt CSV import end-to-end + app wiring for the three new features
+const impCsv = 'name,balance,apr,min\nVisa,1200.50,24.99,35\n"Store, Card",800,19.99,25';
+const imp = D.debtsFromCSV(impCsv);
+(imp.debts.length === 2 && imp.errors.length === 0)
+  ? ok('flow14: debtsFromCSV parses 2 debts, 0 errors') : bad('flow14: import broken');
+const impSim = D.simulate(imp.debts.map((d, i) => ({ id: 'i' + i, name: d.name, balance: d.balance, apr: d.apr, min: d.min })), 'avalanche', 100, start);
+(!impSim.stalled && impSim.months > 0)
+  ? ok('flow14: imported debts feed straight into the simulator (' + impSim.months + ' mo payoff)') : bad('flow14: imported debts do not simulate');
+const html = fs.readFileSync('/home/hatch/workspace/debtpayoff-ai/index.html', 'utf8');
+const appJs = fs.readFileSync('/home/hatch/workspace/debtpayoff-ai/js/app.js', 'utf8');
+(/id="refiDebt"/.test(html) && /id="refiResult"/.test(html) && /id="debtCsv"/.test(html) && /id="minWarn"/.test(html) &&
+ /runRefiCalc/.test(appJs) && /renderMinWarn/.test(appJs) && /debtsFromCSV/.test(appJs))
+  ? ok('flow14: refi card, CSV import, and warning banner are wired in DOM + app') : bad('flow14: new-feature wiring missing');
+
 console.log('---');
 console.log('E2E PASS: ' + pass + '  FAIL: ' + fail);
 process.exit(fail ? 1 : 0);

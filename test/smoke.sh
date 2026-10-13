@@ -89,6 +89,37 @@ const slines = scsv.split('\r\n');
 (slines[0] === 'Month,Date,Payment,Interest,Principal,Balance' && slines.length === av.months + 2)
   ? ok('scheduleToCSV: header + ' + (slines.length - 1) + ' rows') : bad('scheduleToCSV: ' + slines.length + ' lines');
 
+// --- second sweep: refinance what-if, minimum warnings, debt CSV import ---
+// minShortfalls: min < monthly interest flagged, sorted desc, healthy ignored
+const ms = D.minShortfalls([
+  { id: 'x', name: 'Bad card', balance: 10000, apr: 24, min: 50 },
+  { id: 'y', name: 'Worse card', balance: 5000, apr: 36, min: 10 },
+  { id: 'z', name: 'Fine loan', balance: 2000, apr: 6, min: 200 }
+]);
+(ms.length === 2 && ms[0].id === 'x' && ms[0].shortfall === 150 && ms[1].id === 'y')
+  ? ok('minShortfalls: 2 flagged, sorted by shortfall desc, healthy ignored') : bad('minShortfalls: ' + JSON.stringify(ms));
+(D.minShortfalls([]).length === 0) ? ok('minShortfalls: empty -> []') : bad('minShortfalls empty');
+
+// debtsFromCSV: header mapping, quoting, bad rows reported
+const csvIn = 'name,balance,apr,min\nVisa,1200.50,24.99,35\n"Store, Card",800,19.99,25\nBad row,0,5,5\n,500,5,5';
+const imp = D.debtsFromCSV(csvIn);
+(imp.debts.length === 2 && imp.errors.length === 2 && imp.debts[0].name === 'Visa' &&
+ imp.debts[0].balance === 1200.5 && imp.debts[1].name === 'Store, Card')
+  ? ok('debtsFromCSV: 2 parsed (quoting ok), 2 bad rows reported') : bad('debtsFromCSV: ' + JSON.stringify(imp));
+(D.debtsFromCSV('').errors.length === 1 && D.debtsFromCSV('foo,bar\n1,2').debts.length === 0)
+  ? ok('debtsFromCSV: empty + headerless rejected') : bad('debtsFromCSV edge cases');
+
+// refinanceImpact: cheaper APR saves interest; higher APR / unknown debt rejected
+const rdebts = [
+  { id: 'c1', name: 'Card', balance: 8000, apr: 24, min: 200 },
+  { id: 'l1', name: 'Loan', balance: 4000, apr: 8, min: 150 }
+];
+const refi = D.refinanceImpact(rdebts, 300, 'c1', 12, new Date(2026, 0, 1));
+(refi.ok && refi.interestSaved > 0 && refi.monthsSaved >= 0 && refi.newApr === 12 && refi.oldApr === 24 && refi.debt === 'Card')
+  ? ok('refinanceImpact: 24%->12% saves ' + D.money(refi.interestSaved) + ', ' + refi.monthsSaved + ' mo') : bad('refinanceImpact: ' + JSON.stringify({ ok: refi.ok, saved: refi.interestSaved }));
+(!D.refinanceImpact(rdebts, 300, 'c1', 29, new Date(2026, 0, 1)).ok && !D.refinanceImpact(rdebts, 300, 'nope', 5, new Date(2026, 0, 1)).ok)
+  ? ok('refinanceImpact: higher APR + unknown debt rejected') : bad('refinanceImpact error paths');
+
 console.log('---');
 console.log('NODE PASS: ' + pass + '  FAIL: ' + fail);
 process.exit(fail ? 1 : 0);
@@ -96,7 +127,7 @@ NODEEOF
 [ $? -eq 0 ] && ok "node logic checks green" || bad "node logic checks had failures"
 
 # new UI hooks in index.html
-for id in targetDate targetCalc targetResult scheduleTable schedCsv printPlan; do
+for id in targetDate targetCalc targetResult scheduleTable schedCsv printPlan refiDebt refiApr refiCalc refiResult debtCsv debtCsvMsg minWarn; do
   grep -q "id=\"$id\"" index.html && ok "index.html has #$id" || bad "index.html missing #$id"
 done
 
